@@ -24,6 +24,7 @@ The application supports form creation, submission, multi-level approvals, role-
     + IT Equipment Request (Purchase/Repair/Maintenance)
     + Recruitment Request
 
+You can view the demo on: https://digital-enterprise-system.vercel.app
 
 ## Tech Stack
 - **Frontend:** React.js (chosen for its component-based architecture, large community, and efficient DOM updates).
