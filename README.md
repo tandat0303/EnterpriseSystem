@@ -68,7 +68,7 @@ React was selected for its balance of performance, flexibility, and ecosystem su
     + AuditLog: System activity logs.
     + Setting: System configurations.
 
-**ERD** (Entity-Relationship Diagram) overview available in the [Project Documentation - BaoCaoThucTap.pdf](https://github.com/tandat0303/EnterpriseSystem/blob/main/BaoCaoThucTap.pdf). The file may not be available on Github, so I suggest you dowdload to view it.
+**ERD** (Entity-Relationship Diagram) overview available in the [Project Documentation - BaoCaoThucTap.pdf](https://github.com/tandat0303/EnterpriseSystem/blob/main/BaoCaoThucTap.pdf). The file may not be available on Github, so I suggest you download to view it.
 ## Installation
 1. Prerequisites:
 - Node.js (v14+)
