@@ -235,12 +235,10 @@ export function UsersList() {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Vai trò:</span>
                       <div className="flex flex-wrap gap-1">
-                        {Array.isArray(user.roles) && user.roles.length > 0 ? (
-                          user.roles.map((role: Role) => (
-                            <Badge key={role._id} variant="secondary" className="text-xs">
-                              {role.displayName}
-                            </Badge>
-                          ))
+                        {user.roleId ? (
+                          <Badge variant="secondary" className="text-xs">
+                            {(user.roleId as Role)?.displayName}
+                          </Badge>
                         ) : (
                           <span className="text-gray-500">Không có</span>
                         )}
