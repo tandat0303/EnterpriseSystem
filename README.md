@@ -24,6 +24,7 @@ The application supports form creation, submission, multi-level approvals, role-
     + IT Equipment Request (Purchase/Repair/Maintenance)
     + Recruitment Request
 
+You can view the demo on: https://digital-enterprise-system.vercel.app
 
 ## Tech Stack
 - **Frontend:** React.js (chosen for its component-based architecture, large community, and efficient DOM updates).
@@ -68,7 +69,7 @@ React was selected for its balance of performance, flexibility, and ecosystem su
     + AuditLog: System activity logs.
     + Setting: System configurations.
 
-**ERD** (Entity-Relationship Diagram) overview available in the [Project Documentation - BaoCaoThucTap.pdf](https://github.com/tandat0303/EnterpriseSystem/BaoCaoThucTap.pdf).
+**ERD** (Entity-Relationship Diagram) overview available in the [Project Documentation - BaoCaoThucTap.pdf](https://github.com/tandat0303/EnterpriseSystem/blob/main/BaoCaoThucTap.pdf). The file may not be available on Github, so I suggest you download to view it.
 ## Installation
 1. Prerequisites:
 - Node.js (v14+)
