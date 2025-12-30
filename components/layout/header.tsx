@@ -28,23 +28,25 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-gradient-to-r from-blue-50 to-white px-4 md:px-6 shadow-sm">
-      <div className="flex items-center gap-4">
-        <h1 className="text-xl font-semibold text-blue-800">Enterprise System</h1>
+    <header className="flex h-14 sm:h-16 items-center justify-between border-b bg-gradient-to-r from-blue-50 to-white px-3 sm:px-4 md:px-6 shadow-sm">
+      <div className="flex items-center gap-2 sm:gap-4">
+        <h1 className="text-sm sm:text-lg md:text-xl font-semibold text-blue-800 truncate">
+          Enterprise System
+        </h1>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-1 sm:gap-2 md:gap-4">
         <div className="relative">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setIsSearchOpen(!isSearchOpen)}
-            className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 transition-colors duration-200"
+            className="h-8 w-8 sm:h-10 sm:w-10 text-blue-600 hover:text-blue-800 hover:bg-blue-100 transition-colors duration-200"
           >
-            <Search className="h-5 w-5" />
+            <Search className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="sr-only">Toggle search</span>
           </Button>
           {isSearchOpen && (
-            <div className="absolute top-12 right-0 z-50 w-64">
+            <div className="absolute top-12 right-0 z-50 w-56 sm:w-64">
               <SearchForm className="bg-white shadow-md rounded-md border border-blue-200" />
             </div>
           )}
@@ -52,18 +54,20 @@ export function Header() {
         <NotificationsDropdown />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full text-blue-600 hover:text-blue-800 hover:bg-blue-100">
-              <Avatar>
+            <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-10 sm:w-10 rounded-full text-blue-600 hover:text-blue-800 hover:bg-blue-100">
+              <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
                 <AvatarImage src="/placeholder-user.jpg" alt="User Avatar" />
-                <AvatarFallback>{user?.name ? user.name.charAt(0).toUpperCase() : "U"}</AvatarFallback>
+                <AvatarFallback className="text-xs sm:text-sm">
+                  {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
+                </AvatarFallback>
               </Avatar>
               <span className="sr-only">Toggle user menu</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="bg-white border-blue-200">
+          <DropdownMenuContent align="end" className="bg-white border-blue-200 w-56">
             <DropdownMenuLabel className="text-blue-800">
-              {user?.name || "Người dùng"}
-              <div className="text-xs text-blue-600">{user?.email || "N/A"}</div>
+              <div className="truncate">{user?.name || "Người dùng"}</div>
+              <div className="text-xs text-blue-600 truncate">{user?.email || "N/A"}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-blue-200" />
             <DropdownMenuItem
