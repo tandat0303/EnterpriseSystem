@@ -305,12 +305,15 @@ export function ApprovalDetail({ approvalId }: ApprovalDetailProps) {
                         const isCompleted = instanceStep && instanceStep.status === "approved"
                         const isCurrent = index === submission.currentStep
                         const isRejected = instanceStep && instanceStep.status === "rejected"
-                        const stepStatus = isCompleted ? "Đã hoàn thành" : isCurrent ? "Đang chờ" : isRejected ? "Đã từ chối" : "Chưa bắt đầu"
-                        const statusClass = isCompleted
+                        const stepStatus = isCompleted ? "Đã hoàn thành" : isRejected ? "Đã từ chối" : isCurrent ? "Đang chờ" : "Chưa bắt đầu"
+                        const statusClass = 
+                          isCompleted
                           ? "bg-green-100 text-green-800"
+                          : isRejected
+                          ? "bg-red-100 text-red-800"
                           : isCurrent
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-gray-100 text-gray-800"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-gray-100 text-gray-800"
                         return (
                           <div key={step._id || index} className={`text-xs p-2 rounded ${statusClass} hover:bg-opacity-80 transition-colors duration-200`}>
                             <span className="font-medium">Bước {index + 1}:</span>{" "}
