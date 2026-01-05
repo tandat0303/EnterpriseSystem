@@ -13,14 +13,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useRouter } from "next/navigation"
-import { LogOut, Settings, User, Search } from "lucide-react"
+import { LogOut, Settings, User, Search, Menu } from "lucide-react"
 import { NotificationsDropdown } from "@/components/notifications/notifications-dropdown"
 import { SearchForm } from "@/components/layout/search-form"
+import { useSidebar } from "@/components/ui/sidebar"
 
 export function Header() {
   const { user, logout } = useAuth()
   const router = useRouter()
   const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const { toggleSidebar, isMobile } = useSidebar()
 
   const handleLogout = () => {
     logout()
@@ -28,12 +30,26 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-14 sm:h-16 items-center justify-between border-b bg-gradient-to-r from-blue-50 to-white px-3 sm:px-4 md:px-6 shadow-sm">
+    <header className="sticky top-0 z-40 flex h-14 sm:h-16 items-center justify-between border-b bg-gradient-to-r from-blue-50 to-white px-3 sm:px-4 md:px-6 shadow-sm">
       <div className="flex items-center gap-2 sm:gap-4">
+        {/* Mobile menu toggle */}
+        {isMobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            className="h-8 w-8 sm:h-10 sm:w-10 text-blue-600 hover:text-blue-800 hover:bg-blue-100"
+          >
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Toggle menu</span>
+          </Button>
+        )}
+        
         <h1 className="text-sm sm:text-lg md:text-xl font-semibold text-blue-800 truncate">
           Enterprise System
         </h1>
       </div>
+      
       <div className="flex items-center gap-1 sm:gap-2 md:gap-4">
         <div className="relative">
           <Button
@@ -51,13 +67,19 @@ export function Header() {
             </div>
           )}
         </div>
+        
         <NotificationsDropdown />
+        
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-10 sm:w-10 rounded-full text-blue-600 hover:text-blue-800 hover:bg-blue-100">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 sm:h-10 sm:w-10 rounded-full text-blue-600 hover:text-blue-800 hover:bg-blue-100"
+            >
               <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
                 <AvatarImage src="/placeholder-user.jpg" alt="User Avatar" />
-                <AvatarFallback className="text-xs sm:text-sm">
+                <AvatarFallback className="text-xs sm:text-sm bg-blue-500 text-white">
                   {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
                 </AvatarFallback>
               </Avatar>
@@ -66,20 +88,20 @@ export function Header() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="bg-white border-blue-200 w-56">
             <DropdownMenuLabel className="text-blue-800">
-              <div className="truncate">{user?.name || "Người dùng"}</div>
-              <div className="text-xs text-blue-600 truncate">{user?.email || "N/A"}</div>
+              <div className="truncate font-semibold">{user?.name || "Người dùng"}</div>
+              <div className="text-xs text-blue-600 truncate font-normal">{user?.email || "N/A"}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-blue-200" />
             <DropdownMenuItem
               onClick={() => router.push("/settings")}
-              className="text-blue-700 hover:bg-blue-50 hover:text-blue-900"
+              className="text-blue-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer"
             >
               <Settings className="mr-2 h-4 w-4" />
               Cài đặt
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => router.push(`/users/${user?._id}`)}
-              className="text-blue-700 hover:bg-blue-50 hover:text-blue-900"
+              className="text-blue-700 hover:bg-blue-50 hover:text-blue-900 cursor-pointer"
             >
               <User className="mr-2 h-4 w-4" />
               Hồ sơ
@@ -87,7 +109,7 @@ export function Header() {
             <DropdownMenuSeparator className="bg-blue-200" />
             <DropdownMenuItem
               onClick={handleLogout}
-              className="text-red-600 hover:bg-red-50 hover:text-red-800"
+              className="text-red-600 hover:bg-red-50 hover:text-red-800 cursor-pointer"
             >
               <LogOut className="mr-2 h-4 w-4" />
               Đăng xuất
