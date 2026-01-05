@@ -304,7 +304,8 @@ export function ApprovalDetail({ approvalId }: ApprovalDetailProps) {
                         const instanceStep = workflowInstance[index]
                         const isCompleted = instanceStep && instanceStep.status === "approved"
                         const isCurrent = index === submission.currentStep
-                        const stepStatus = isCompleted ? "Đã hoàn thành" : isCurrent ? "Đang chờ" : "Chưa bắt đầu"
+                        const isRejected = instanceStep && instanceStep.status === "rejected"
+                        const stepStatus = isCompleted ? "Đã hoàn thành" : isCurrent ? "Đang chờ" : isRejected ? "Đã từ chối" : "Chưa bắt đầu"
                         const statusClass = isCompleted
                           ? "bg-green-100 text-green-800"
                           : isCurrent
