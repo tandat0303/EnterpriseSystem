@@ -134,7 +134,7 @@ export interface FormSubmission {
 
 export interface WorkflowInstanceStep {
   stepId: string
-  status: "pending" | "approved" | "rejected" | "completed"
+  status: "pending" | "approved" | "rejected" | "feedback" | "completed"
   approverId?: string // User ID who approved/rejected
   approvedAt?: string
   comments?: string
