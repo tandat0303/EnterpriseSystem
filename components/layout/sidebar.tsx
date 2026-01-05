@@ -138,7 +138,11 @@ export function AppSidebar() {
             />
           ) : (
             <div className="h-8 w-8 bg-blue-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">S</span>
+              <img 
+                src="/sgu-logo.png" 
+                alt="SGU Logo" 
+                className="h-12 sm:h-16 w-auto transition-all duration-300" 
+              />
             </div>
           )}
         </div>
@@ -148,7 +152,7 @@ export function AppSidebar() {
         <SidebarGroup>
           {open && (
             <SidebarGroupLabel className="text-blue-700 text-xs font-semibold px-3 mb-2">
-              Điều hướng
+              Menu
             </SidebarGroupLabel>
           )}
           <SidebarGroupContent>
