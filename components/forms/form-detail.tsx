@@ -1,276 +1,318 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
-import { apiClient } from "@/lib/api-client"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Trash2, Edit, ArrowLeft } from "lucide-react"
-import type { FormTemplate, Workflow, Role, FormField, Department } from "@/types"
-import { LoadingCard } from "@/components/ui/loading"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api-client";
+import { Button } from "@/components/ui/button";
+import {
+  Trash2,
+  Edit,
+  ArrowLeft,
+  FileText,
+  Layers,
+  Workflow,
+  Info,
+  AlertCircle,
+} from "lucide-react";
+import type {
+  FormTemplate,
+  Workflow as WorkflowType,
+  Role,
+  FormField,
+  Department,
+} from "@/types";
+import { LoadingCard } from "@/components/ui/loading";
+import { cn } from "@/lib/utils";
 
-interface FormDetailProps {
-  formId: string
-}
+const fieldTypeLabels: Record<string, string> = {
+  text: "Văn bản",
+  textarea: "Văn bản dài",
+  select: "Lựa chọn",
+  date: "Ngày tháng",
+  file: "Tệp đính kèm",
+  number: "Số",
+};
 
-export function FormDetail({ formId }: FormDetailProps) {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [form, setForm] = useState<FormTemplate | null>(null)
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isDeleting, setIsDeleting] = useState(false)
+export function FormDetail({ formId }: { formId: string }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [form, setForm] = useState<FormTemplate | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    const fetchFormAndDepartments = async () => {
-      setIsLoading(true)
+    const load = async () => {
+      setIsLoading(true);
       try {
-        const [formData, departmentsData] = await Promise.all([
+        const [formData, deptsData] = await Promise.all([
           apiClient.get(`/api/forms/${formId}`),
-          apiClient.get<Department[]>("/api/departments", { params: { status: "active" } }),
-        ])
-        setForm(formData)
-        setDepartments(Array.isArray(departmentsData) ? departmentsData : [])
+          apiClient.get<Department[]>("/api/departments", {
+            params: { status: "active" },
+          }),
+        ]);
+        setForm(formData);
+        setDepartments(Array.isArray(deptsData) ? deptsData : []);
       } catch (error: any) {
-        console.error("Error fetching form or departments:", error)
         toast({
           title: "Lỗi",
-          description: error.message || "Không thể tải thông tin biểu mẫu hoặc phòng ban.",
+          description: error.message || "Không thể tải thông tin.",
           variant: "destructive",
-        })
-        router.push("/forms")
+        });
+        router.push("/forms");
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
-    if (formId) {
-      fetchFormAndDepartments()
-    }
-  }, [formId, router, toast])
+    };
+    if (formId) load();
+  }, [formId]);
 
   const handleDelete = async () => {
-    if (!confirm("Bạn có chắc muốn xóa biểu mẫu này? Hành động này không thể hoàn tác.")) {
-      return
-    }
-    setIsDeleting(true)
+    if (!confirm("Xóa biểu mẫu này? Hành động không thể hoàn tác.")) return;
+    setIsDeleting(true);
     try {
-      await apiClient.delete(`/api/forms/${formId}`)
-      toast({
-        title: "Thành công",
-        description: "Biểu mẫu đã được xóa.",
-      })
-      router.push("/forms")
+      await apiClient.delete(`/api/forms/${formId}`);
+      toast({ title: "Thành công", description: "Biểu mẫu đã được xóa." });
+      router.push("/forms");
     } catch (error: any) {
-      console.error("Error deleting form:", error)
       toast({
         title: "Lỗi",
-        description: error.message || "Không thể xóa biểu mẫu.",
+        description: error.message || "Không thể xóa.",
         variant: "destructive",
-      })
-    } finally {
-      setIsDeleting(false)
+      });
+      setIsDeleting(false);
     }
-  }
+  };
 
-  if (isLoading) {
+  if (isLoading)
     return (
-      <LoadingCard className="w-full max-w-4xl mx-auto h-[600px] bg-gradient-to-br from-blue-50 to-white shadow-sm">
-        <div className="space-y-6">
-          <div className="h-6 bg-gray-200 rounded w-1/2" />
-          <div className="h-8 bg-gray-200 rounded" />
-          <div className="h-8 bg-gray-200 rounded" />
-          <div className="h-20 bg-gray-200 rounded" />
-        </div>
-      </LoadingCard>
-    )
-  }
-
-  if (!form) {
-    return (
-      <div className="text-center py-12 text-gray-500 bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-sm">
-        Không tìm thấy biểu mẫu.
+      <div className="space-y-4 max-w-3xl">
+        <div className="h-9 w-48 bg-slate-100 rounded-xl animate-pulse" />
+        {Array.from({ length: 3 }).map((_, i) => (
+          <LoadingCard key={i} className="h-40" />
+        ))}
       </div>
-    )
-  }
+    );
+
+  if (!form)
+    return (
+      <div className="bg-white rounded-2xl border border-slate-100 py-16 flex flex-col items-center text-center">
+        <AlertCircle className="h-8 w-8 text-slate-300 mb-3" />
+        <p className="text-[13px] text-slate-500">Không tìm thấy biểu mẫu.</p>
+      </div>
+    );
 
   const workflow =
-    typeof form.workflowId === "object" && form.workflowId !== null ? (form.workflowId as Workflow) : null
-
-  const categoryDisplay = departments.find((dept) => dept.name === form.category)
-    ? form.category
-    : "Không xác định"
+    typeof form.workflowId === "object" && form.workflowId
+      ? (form.workflowId as WorkflowType)
+      : null;
+  const statusConfig = {
+    active: {
+      label: "Hoạt động",
+      className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    },
+    draft: {
+      label: "Bản nháp",
+      className: "bg-amber-50 text-amber-700 border-amber-200",
+    },
+    inactive: {
+      label: "Không hoạt động",
+      className: "bg-slate-100 text-slate-500 border-slate-200",
+    },
+  };
+  const status = statusConfig[form.status as keyof typeof statusConfig];
 
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-gradient-to-br from-blue-50 to-white rounded-lg shadow-sm">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="outline"
+    <div className="space-y-5 max-w-3xl">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button
             onClick={() => router.push("/forms")}
-            className="border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors duration-200"
+            className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Quay lại
-          </Button>
-          <h2 className="text-3xl font-bold text-blue-800">{form.name}</h2>
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div>
+            <h1 className="text-lg font-bold text-slate-900">{form.name}</h1>
+            <span
+              className={cn(
+                "inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full border mt-0.5",
+                status?.className,
+              )}
+            >
+              {status?.label}
+            </span>
+          </div>
         </div>
-        <div className="space-x-2">
+        <div className="flex items-center gap-2">
           <Button
-            variant="outline"
+            size="sm"
+            variant="ghost"
             onClick={() => router.push(`/forms/${formId}/edit`)}
-            className="border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors duration-200"
+            className="h-8 px-3 text-[12.5px] text-slate-600 hover:bg-slate-100 rounded-lg gap-1.5"
           >
-            <Edit className="h-4 w-4 mr-2" />
-            Chỉnh sửa
+            <Edit className="h-3.5 w-3.5" /> Chỉnh sửa
           </Button>
           <Button
-            variant="destructive"
+            size="sm"
+            variant="ghost"
             onClick={handleDelete}
             disabled={isDeleting}
-            className="bg-red-600 hover:bg-red-700 transition-colors duration-200"
+            className="h-8 px-3 text-[12.5px] text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg gap-1.5"
           >
-            <Trash2 className="h-4 w-4 mr-2" />
+            <Trash2 className="h-3.5 w-3.5" />
             {isDeleting ? "Đang xóa..." : "Xóa"}
           </Button>
         </div>
       </div>
 
-      <Card className="mb-6 bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-        <CardHeader>
-          <CardTitle className="text-xl text-blue-800">Thông tin cơ bản</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      {/* Basic info */}
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40 flex items-center gap-2">
+          <Info className="h-3.5 w-3.5 text-slate-400" />
+          <h2 className="text-[13px] font-semibold text-slate-700">
+            Thông tin cơ bản
+          </h2>
+        </div>
+        <div className="px-5 py-4 grid grid-cols-2 gap-x-8 gap-y-4">
           <div>
-            <p className="text-sm font-semibold text-gray-600">Tên biểu mẫu</p>
-            <p className="text-lg text-gray-800">{form.name}</p>
+            <p className="text-[11px] text-slate-400 mb-0.5">Tên biểu mẫu</p>
+            <p className="text-[13px] font-medium text-slate-800">
+              {form.name}
+            </p>
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-600">Mô tả</p>
-            <p className="text-gray-700">{form.description || "Không có mô tả."}</p>
+            <p className="text-[11px] text-slate-400 mb-0.5">Danh mục</p>
+            <p className="text-[13px] font-medium text-slate-800">
+              {departments.find((d) => d.name === form.category)?.name ||
+                form.category ||
+                "—"}
+            </p>
+          </div>
+          <div className="col-span-2">
+            <p className="text-[11px] text-slate-400 mb-0.5">Mô tả</p>
+            <p className="text-[13px] text-slate-700">
+              {form.description || "Không có mô tả."}
+            </p>
           </div>
           <div>
-            <p className="text-sm font-semibold text-gray-600">Danh mục</p>
-            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 transition-colors duration-200">
-              {categoryDisplay}
-            </Badge>
+            <p className="text-[11px] text-slate-400 mb-0.5">Ngày tạo</p>
+            <p className="text-[13px] text-slate-700">
+              {new Date(form.createdAt).toLocaleString("vi-VN")}
+            </p>
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <p className="text-[11px] text-slate-400 mb-0.5">Người tạo</p>
+            <p className="text-[13px] text-slate-700">
+              {(form.createdBy as any)?.name || "—"}
+            </p>
+          </div>
+        </div>
+      </div>
 
-      <Card className="mb-6 bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-        <CardHeader>
-          <CardTitle className="text-xl text-blue-800">Trường dữ liệu</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {form.fields && form.fields.length > 0 ? (
-            <div className="space-y-4">
-              {form.fields.map((field: FormField, index: number) => (
-                <div key={field.id} className="p-4 border border-blue-200 rounded-lg bg-gray-50 hover:bg-blue-50 transition-colors duration-200">
-                  <div className="flex justify-between items-center mb-2">
-                    <p className="text-sm font-semibold text-gray-600">Trường {index + 1}: {field.label}</p>
-                    <Badge
-                      variant={field.required ? "default" : "outline"}
-                      className={field.required ? "bg-blue-600 text-white hover:bg-blue-700" : "text-gray-600 border-blue-200"}
-                    >
-                      {field.required ? "Bắt buộc" : "Tùy chọn"}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-gray-600">Loại: {getFieldTypeLabel(field.type)}</p>
-                  {field.type === "select" && field.options && (
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-600">Tùy chọn:</p>
-                      <ul className="list-disc list-inside text-sm text-gray-700">
-                        {field.options.map((option, idx) => (
-                          <li key={idx}>{option}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+      {/* Fields */}
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40 flex items-center gap-2">
+          <Layers className="h-3.5 w-3.5 text-slate-400" />
+          <h2 className="text-[13px] font-semibold text-slate-700">
+            Trường dữ liệu
+          </h2>
+          <span className="text-[11px] text-slate-400 ml-auto">
+            {form.fields?.length ?? 0} trường
+          </span>
+        </div>
+        {form.fields?.length ? (
+          <div className="divide-y divide-slate-50">
+            {form.fields.map((field: FormField, i: number) => (
+              <div
+                key={field.id}
+                className="px-5 py-3.5 flex items-start gap-4"
+              >
+                <div className="h-6 w-6 rounded-md bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 flex-shrink-0 mt-0.5">
+                  {i + 1}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">Không có trường dữ liệu nào.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="mb-6 bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-        <CardHeader>
-          <CardTitle className="text-xl text-blue-800">Luồng phê duyệt</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <p className="text-sm font-semibold text-gray-600">Tên luồng</p>
-            <p className="text-lg text-gray-800">{workflow ? workflow.name : "N/A"}</p>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-600">Mô tả</p>
-            <p className="text-gray-700">{workflow ? workflow.description : "N/A"}</p>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-600">Các bước phê duyệt</p>
-            {workflow && workflow.steps && workflow.steps.length > 0 ? (
-              <div className="space-y-2 mt-2">
-                {workflow.steps.map((step, index) => (
-                  <div key={index} className="text-sm bg-blue-50 p-3 rounded-lg">
-                    <span className="font-medium">Bước {index + 1}:</span>{" "}
-                    {(step.roleId as Role)?.displayName || "N/A"}
-                    {step.approverId && (
-                      <span className="ml-2 text-gray-500">
-                        (Người phê duyệt: {(step.approverId as any)?.name || step.approverId})
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[13px] font-medium text-slate-800">
+                      {field.label}
+                    </p>
+                    <span className="text-[10px] px-2 py-0.5 bg-sky-50 text-sky-600 border border-sky-100 rounded-full">
+                      {fieldTypeLabels[field.type] || field.type}
+                    </span>
+                    {field.required && (
+                      <span className="text-[10px] px-2 py-0.5 bg-red-50 text-red-500 border border-red-100 rounded-full">
+                        Bắt buộc
                       </span>
                     )}
                   </div>
-                ))}
+                  {field.type === "select" && field.options?.length && (
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Lựa chọn: {field.options.join(", ")}
+                    </p>
+                  )}
+                </div>
               </div>
-            ) : (
-              <p className="text-sm text-gray-500">Không có bước phê duyệt nào.</p>
-            )}
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        ) : (
+          <p className="px-5 py-4 text-[13px] text-slate-400">
+            Không có trường dữ liệu.
+          </p>
+        )}
+      </div>
 
-      <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-        <CardHeader>
-          <CardTitle className="text-xl text-blue-800">Thông tin khác</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <p className="text-sm font-semibold text-gray-600">Ngày tạo</p>
-            <p className="text-sm text-gray-800">{new Date(form.createdAt).toLocaleString("vi-VN")}</p>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-600">Ngày cập nhật</p>
-            <p className="text-sm text-gray-800">{new Date(form.updatedAt).toLocaleString("vi-VN")}</p>
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-600">Người tạo</p>
-            <p className="text-sm text-gray-800">{(form.createdBy as any)?.name || (form.createdBy as any)?._id || "N/A"}</p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Workflow */}
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40 flex items-center gap-2">
+          <Workflow className="h-3.5 w-3.5 text-slate-400" />
+          <h2 className="text-[13px] font-semibold text-slate-700">
+            Luồng phê duyệt
+          </h2>
+        </div>
+        <div className="px-5 py-4">
+          {workflow ? (
+            <div className="space-y-3">
+              <div>
+                <p className="text-[11px] text-slate-400">Tên luồng</p>
+                <p className="text-[13px] font-medium text-slate-800 mt-0.5">
+                  {workflow.name}
+                </p>
+              </div>
+              {workflow.description && (
+                <div>
+                  <p className="text-[11px] text-slate-400">Mô tả</p>
+                  <p className="text-[13px] text-slate-700 mt-0.5">
+                    {workflow.description}
+                  </p>
+                </div>
+              )}
+              {workflow.steps?.length ? (
+                <div className="space-y-1.5 mt-2">
+                  {workflow.steps.map((step, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 px-3 py-2 bg-slate-50 rounded-lg"
+                    >
+                      <span className="h-5 w-5 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500 flex-shrink-0">
+                        {i + 1}
+                      </span>
+                      <p className="text-[12.5px] text-slate-700">
+                        {(step.roleId as Role)?.displayName || "N/A"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-[13px] text-slate-400">
+              Chưa có luồng phê duyệt.
+            </p>
+          )}
+        </div>
+      </div>
     </div>
-  )
-}
-
-function getFieldTypeLabel(type: string): string {
-  switch (type) {
-    case "text":
-      return "Văn bản"
-    case "textarea":
-      return "Văn bản dài"
-    case "select":
-      return "Lựa chọn"
-    case "date":
-      return "Ngày tháng"
-    case "file":
-      return "Tệp đính kèm"
-    case "number":
-      return "Số"
-    default:
-      return "Không xác định"
-  }
+  );
 }

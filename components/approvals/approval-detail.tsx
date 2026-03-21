@@ -1,436 +1,551 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Check, X, MessageSquare, FileText, Clock, Download, Users } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/components/providers/auth-provider"
-import { apiClient } from "@/lib/api-client"
-import type { FormSubmission, FormField, User as UserType, FormTemplate, WorkflowInstanceStep } from "@/types"
-import { LoadingCard, LoadingSkeleton, ButtonLoading } from "@/components/ui/loading"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  ArrowLeft,
+  Check,
+  X,
+  MessageSquare,
+  FileText,
+  Clock,
+  Download,
+  Users,
+  AlertCircle,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/providers/auth-provider";
+import { apiClient } from "@/lib/api-client";
+import type {
+  FormSubmission,
+  FormField,
+  User as UserType,
+  FormTemplate,
+  WorkflowInstanceStep,
+} from "@/types";
+import {
+  LoadingCard,
+  LoadingSkeleton,
+  ButtonLoading,
+} from "@/components/ui/loading";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 interface ApprovalDetailProps {
-  approvalId: string
+  approvalId: string;
 }
 
-export function ApprovalDetail({ approvalId }: ApprovalDetailProps) {
-  const router = useRouter()
-  const { toast } = useToast()
-  const { user } = useAuth()
-  const [submission, setSubmission] = useState<FormSubmission | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [comment, setComment] = useState("")
-  const [isApproving, setIsApproving] = useState(false)
-  const [isRejecting, setIsRejecting] = useState(false)
-  const [isFeedbacking, setIsFeedbacking] = useState(false)
+const statusConfig = {
+  pending: {
+    label: "Chờ duyệt",
+    className: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  approved: {
+    label: "Đã duyệt",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  rejected: {
+    label: "Từ chối",
+    className: "bg-red-50 text-red-700 border-red-200",
+  },
+  feedback_requested: {
+    label: "Yêu cầu phản hồi",
+    className: "bg-sky-50 text-sky-700 border-sky-200",
+  },
+};
 
-  const fetchSubmission = async () => {
-    setIsLoading(true)
-    try {
-      const data: FormSubmission = await apiClient.get(`/api/submissions/${approvalId}`)
-      console.log("Fetched submission data:", data)
-      setSubmission(data)
-    } catch (error: any) {
-      console.error("Error fetching submission:", error)
-      toast({
-        title: "Lỗi",
-        description: error.message || "Không thể tải thông tin yêu cầu phê duyệt.",
-        variant: "destructive",
-      })
-      router.push("/approvals")
-    } finally {
-      setIsLoading(false)
-    }
-  }
+const stepStatusConfig = {
+  approved: {
+    label: "Hoàn thành",
+    className: "bg-emerald-50 text-emerald-700",
+  },
+  rejected: { label: "Từ chối", className: "bg-red-50 text-red-700" },
+  feedback: { label: "Phản hồi", className: "bg-sky-50 text-sky-700" },
+  pending: { label: "Đang chờ", className: "bg-amber-50 text-amber-700" },
+  idle: { label: "Chưa bắt đầu", className: "bg-slate-100 text-slate-500" },
+};
+
+const priorityConfig = {
+  high: { label: "Cao", dot: "bg-red-400" },
+  medium: { label: "Trung bình", dot: "bg-amber-400" },
+  low: { label: "Thấp", dot: "bg-emerald-400" },
+};
+
+const actionIcons = {
+  approve: Check,
+  reject: X,
+  feedback: MessageSquare,
+  submitted: FileText,
+};
+const actionLabels = {
+  approve: "Duyệt",
+  reject: "Từ chối",
+  feedback: "Phản hồi",
+  submitted: "Gửi",
+};
+
+export function ApprovalDetail({ approvalId }: ApprovalDetailProps) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [submission, setSubmission] = useState<FormSubmission | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [comment, setComment] = useState("");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchSubmission()
-  }, [approvalId])
+    const fetch = async () => {
+      setIsLoading(true);
+      try {
+        setSubmission(await apiClient.get(`/api/submissions/${approvalId}`));
+      } catch (error: any) {
+        toast({
+          title: "Lỗi",
+          description: error.message || "Không thể tải thông tin phê duyệt.",
+          variant: "destructive",
+        });
+        router.push("/approvals");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetch();
+  }, [approvalId]);
 
   const handleAction = async (action: "approve" | "reject" | "feedback") => {
-    if (!user || !submission) return
-
-    if (action === "approve") setIsApproving(true)
-    if (action === "reject") setIsRejecting(true)
-    if (action === "feedback") setIsFeedbacking(true)
-
+    if (!user || !submission) return;
+    setActionLoading(action);
     try {
-      console.log("Sending POST request:", { url: `/api/submissions/${submission._id}/action`, data: { action, comment, approverId: user._id } })
-      const response = await apiClient.post(`/api/submissions/${submission._id}/action`, {
-        action,
-        comment: action === "feedback" && !comment ? "Phản hồi không có nội dung" : comment,
-        approverId: user._id,
-      })
-
-      setSubmission(response)
-
+      const response = await apiClient.post(
+        `/api/submissions/${submission._id}/action`,
+        {
+          action,
+          comment:
+            action === "feedback" && !comment
+              ? "Phản hồi không có nội dung"
+              : comment,
+          approverId: user._id,
+        },
+      );
+      setSubmission(response);
       toast({
         title: "Thành công",
-        description: `Yêu cầu đã được ${action === "approve" ? "duyệt" : action === "reject" ? "từ chối" : "gửi phản hồi"} thành công.`,
-      })
-      setComment("")
-
-      router.refresh()
+        description: `Yêu cầu đã được ${action === "approve" ? "duyệt" : action === "reject" ? "từ chối" : "gửi phản hồi"}.`,
+      });
+      setComment("");
+      router.refresh();
     } catch (error: any) {
-      console.error(`Failed to ${action} approval:`, error)
       toast({
         title: "Lỗi",
-        description: error.message || `Có lỗi xảy ra khi ${action === "approve" ? "duyệt" : action === "reject" ? "từ chối" : "gửi phản hồi"} yêu cầu.`,
+        description: error.message || "Có lỗi xảy ra.",
         variant: "destructive",
-      })
+      });
     } finally {
-      if (action === "approve") setIsApproving(false)
-      if (action === "reject") setIsRejecting(false)
-      if (action === "feedback") setIsFeedbacking(false)
+      setActionLoading(null);
     }
-  }
-
-  const statusColors = {
-    pending: "bg-yellow-100 text-yellow-800",
-    approved: "bg-green-100 text-green-800",
-    rejected: "bg-red-100 text-red-800",
-    feedback_requested: "bg-blue-100 text-blue-800",
-  }
-
-  const statusLabels = {
-    pending: "Chờ duyệt",
-    approved: "Đã duyệt",
-    rejected: "Từ chối",
-    feedback_requested: "Yêu cầu phản hồi",
-  }
-
-  const priorityColors = {
-    high: "text-red-600",
-    medium: "text-yellow-600",
-    low: "text-green-600",
-  }
-
-  const actionLabels = {
-    approve: "Duyệt",
-    reject: "Từ chối",
-    feedback: "Phản hồi",
-    submitted: "Gửi",
-  }
+  };
 
   if (isLoading) {
     return (
-      <div className="space-y-6 bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="h-10 w-24 bg-gray-200 rounded animate-pulse" />
-            <div>
-              <LoadingSkeleton className="h-8 w-64" />
-              <LoadingSkeleton className="h-4 w-48 mt-2" />
-            </div>
-          </div>
-          <div className="flex space-x-2">
-            <div className="h-10 w-24 bg-gray-200 rounded animate-pulse" />
-            <div className="h-10 w-24 bg-gray-200 rounded animate-pulse" />
-          </div>
+      <div className="space-y-4">
+        <div className="flex items-center gap-4">
+          <div className="h-9 w-24 bg-slate-100 rounded-lg animate-pulse" />
+          <LoadingSkeleton className="h-7 w-64" />
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <LoadingCard className="h-48" />
-            <LoadingCard className="h-64" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 space-y-4">
+            <LoadingCard className="h-40" />
+            <LoadingCard className="h-56" />
           </div>
-          <div className="space-y-6">
-            <LoadingCard className="h-48" />
-            <LoadingCard className="h-48" />
+          <div className="space-y-4">
+            <LoadingCard className="h-40" />
+            <LoadingCard className="h-40" />
           </div>
         </div>
       </div>
-    )
+    );
   }
 
-  if (!submission || !submission.formTemplateId || !submission.submitterId) {
+  if (!submission?.formTemplateId || !submission?.submitterId) {
     return (
-      <div className="text-center py-12 text-gray-500 bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-sm">
-        Dữ liệu biểu mẫu không đầy đủ hoặc không tìm thấy.
+      <div className="bg-white rounded-2xl border border-slate-100 py-16 flex flex-col items-center text-center">
+        <AlertCircle className="h-8 w-8 text-slate-300 mb-3" />
+        <p className="text-[13px] text-slate-500">
+          Dữ liệu không đầy đủ hoặc không tìm thấy.
+        </p>
       </div>
-    )
+    );
   }
 
-  const formTemplate = submission.formTemplateId as FormTemplate
-  const submitter = submission.submitterId as UserType
-  const workflowSteps = formTemplate.workflowId?.steps || []
-  const workflowInstance = submission.workflowInstance || []
+  const formTemplate = submission.formTemplateId as FormTemplate;
+  const submitter = submission.submitterId as UserType;
+  const workflowSteps = formTemplate.workflowId?.steps || [];
+  const workflowInstance = submission.workflowInstance || [];
 
-  const currentStepDetails = workflowSteps[submission.currentStep]
-  const currentInstanceStep = workflowInstance[submission.currentStep]
-  const isCurrentApprover = user && currentStepDetails && currentInstanceStep && (
-    (currentInstanceStep.approverId && 
-      (currentInstanceStep.approverId._id?.toString() || currentInstanceStep.approverId.toString()) === user._id.toString()) ||
-    (!currentInstanceStep.approverId && 
-      user.roleId === (currentStepDetails.roleId?._id?.toString() || currentStepDetails.roleId) &&
-      user.departmentId?._id?.toString() === submitter.departmentId?._id?.toString())
-  )
-  const canApprove = submission.status === "pending" && isCurrentApprover
+  const currentStepDetails = workflowSteps[submission.currentStep];
+  const currentInstanceStep = workflowInstance[submission.currentStep];
+  const isCurrentApprover =
+    user &&
+    currentStepDetails &&
+    currentInstanceStep &&
+    ((currentInstanceStep.approverId &&
+      (currentInstanceStep.approverId._id?.toString() ||
+        currentInstanceStep.approverId.toString()) === user._id.toString()) ||
+      (!currentInstanceStep.approverId &&
+        user.roleId ===
+          (currentStepDetails.roleId?._id?.toString() ||
+            currentStepDetails.roleId) &&
+        user.departmentId?._id?.toString() ===
+          submitter.departmentId?._id?.toString()));
+  const canApprove = submission.status === "pending" && isCurrentApprover;
+
+  const status = statusConfig[submission.status as keyof typeof statusConfig];
+  const priority =
+    priorityConfig[submission.priority as keyof typeof priorityConfig];
 
   return (
-    <div className="space-y-6 bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+    <div className="space-y-5">
+      {/* Page header */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             onClick={() => router.push("/approvals")}
-            className="border-blue-200 text-blue-600 hover:bg-blue-100"
+            className="h-8 px-3 text-[12.5px] text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg gap-1.5"
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
+            <ArrowLeft className="h-3.5 w-3.5" />
             Quay lại
           </Button>
+          <div className="h-5 w-px bg-slate-200" />
           <div>
-            <h1 className="text-3xl font-bold text-blue-800">{formTemplate?.name || "Không có tên biểu mẫu"}</h1>
-            <p className="text-gray-600">Yêu cầu của {submitter?.name || "Không xác định"}</p>
+            <h1 className="text-lg font-bold text-slate-900">
+              {formTemplate?.name || "Biểu mẫu"}
+            </h1>
+            <p className="text-[12px] text-slate-500">
+              Yêu cầu của {submitter?.name}
+            </p>
           </div>
         </div>
-        <Badge className={`${statusColors[submission.status as keyof typeof statusColors]} hover:bg-opacity-80 transition-colors duration-200`}>
-          {statusLabels[submission.status as keyof typeof statusLabels]}
-        </Badge>
+        <span
+          className={cn(
+            "inline-flex items-center text-[11px] font-medium px-3 py-1 rounded-full border",
+            status?.className,
+          )}
+        >
+          {status?.label}
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-            <CardHeader>
-              <CardTitle className="text-blue-800">Thông tin yêu cầu</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Người gửi:</span>
-                  <p className="text-sm text-gray-800">{submitter?.name || "Không xác định"}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Phòng ban:</span>
-                  <p className="text-sm text-gray-800">{submitter?.departmentId?.name || "Không có phòng ban"}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Ngày gửi:</span>
-                  <p className="text-sm text-gray-800">{new Date(submission.createdAt).toLocaleString("vi-VN", {
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* LEFT: submission info + form data */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Info card */}
+          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40">
+              <h2 className="text-[13px] font-semibold text-slate-700">
+                Thông tin yêu cầu
+              </h2>
+            </div>
+            <div className="px-5 py-4 grid grid-cols-2 gap-x-8 gap-y-4">
+              {[
+                ["Người gửi", submitter?.name || "N/A"],
+                ["Phòng ban", submitter?.departmentId?.name || "N/A"],
+                [
+                  "Ngày gửi",
+                  new Date(submission.createdAt).toLocaleString("vi-VN", {
                     day: "2-digit",
                     month: "2-digit",
                     year: "numeric",
                     hour: "2-digit",
                     minute: "2-digit",
-                    hour12: false
-                  })}</p>
+                    hour12: false,
+                  }),
+                ],
+              ].map(([lbl, val]) => (
+                <div key={lbl}>
+                  <p className="text-[11px] text-slate-400 mb-0.5">{lbl}</p>
+                  <p className="text-[13px] font-medium text-slate-800">
+                    {val}
+                  </p>
                 </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Ưu tiên:</span>
-                  <p className={`text-sm font-medium ${priorityColors[submission.priority]}`}>
-                    {submission.priority === "high" ? "Cao" : submission.priority === "medium" ? "Trung bình" : "Thấp"}
+              ))}
+              <div>
+                <p className="text-[11px] text-slate-400 mb-0.5">Ưu tiên</p>
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className={cn("h-1.5 w-1.5 rounded-full", priority?.dot)}
+                  />
+                  <p className="text-[13px] font-medium text-slate-800">
+                    {priority?.label}
                   </p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-            <CardHeader>
-              <CardTitle className="text-blue-800">Dữ liệu biểu mẫu</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {formTemplate?.fields && formTemplate.fields.length > 0 ? (
+          {/* Form data */}
+          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40">
+              <h2 className="text-[13px] font-semibold text-slate-700">
+                Dữ liệu biểu mẫu
+              </h2>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {formTemplate?.fields?.length > 0 ? (
                 formTemplate.fields.map((field: FormField) => {
-                  const rawValue = submission.data[field.id] || submission.data[field.name] || "Không có dữ liệu"
-                  let fieldValue = rawValue
-                  if (field.type === "date" && rawValue) {
-                    const date = new Date(rawValue)
-                    fieldValue = date.toLocaleDateString("vi-VN", {
+                  const raw =
+                    submission.data[field.id] ||
+                    submission.data[field.name] ||
+                    "";
+                  let val = raw;
+                  if (field.type === "date" && raw) {
+                    val = new Date(raw).toLocaleDateString("vi-VN", {
                       day: "2-digit",
                       month: "2-digit",
                       year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false
-                    })
+                    });
                   }
                   return (
-                    <div key={field.id} className="border-b border-gray-200 pb-2 last:border-b-0 hover:bg-gray-50 transition-colors duration-200">
-                      <p className="text-sm font-medium text-gray-700">{field.label || field.name}:</p>
+                    <div
+                      key={field.id}
+                      className="px-5 py-3 flex items-start gap-4"
+                    >
+                      <p className="text-[12px] text-slate-400 w-36 flex-shrink-0 mt-0.5">
+                        {field.label || field.name}
+                      </p>
                       {field.type === "file" ? (
-                        submission.data[field.id] && submission.data[field.id].fileUrl ? (
+                        submission.data[field.id]?.fileUrl ? (
                           <a
                             href={submission.data[field.id].fileUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline flex items-center text-sm"
+                            className="text-[12px] text-sky-600 hover:underline flex items-center gap-1"
                           >
-                            <Download className="h-4 w-4 mr-1" />
-                            {submission.data[field.id].fileName || "Tệp đính kèm"}
+                            <Download className="h-3.5 w-3.5" />
+                            {submission.data[field.id].fileName ||
+                              "Tệp đính kèm"}
                           </a>
                         ) : (
-                          <p className="text-sm text-gray-500">Không có tệp đính kèm</p>
+                          <p className="text-[12px] text-slate-400">
+                            Không có tệp
+                          </p>
                         )
                       ) : (
-                        <p className="text-sm text-gray-800">
-                          {fieldValue}
+                        <p className="text-[13px] text-slate-800">
+                          {val || <span className="text-slate-300">—</span>}
                         </p>
                       )}
                     </div>
-                  )
+                  );
                 })
               ) : (
-                <p className="text-gray-500">Không có trường dữ liệu nào.</p>
+                <p className="px-5 py-4 text-[13px] text-slate-400">
+                  Không có trường dữ liệu.
+                </p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
 
-        <div className="space-y-6">
-          <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-            <CardHeader>
-              <CardTitle className="flex items-center text-blue-800">
-                <Users className="h-5 w-5 mr-2" />
+        {/* RIGHT: workflow + history + actions */}
+        <div className="space-y-4">
+          {/* Workflow steps */}
+          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40 flex items-center gap-2">
+              <Users className="h-3.5 w-3.5 text-slate-400" />
+              <h2 className="text-[13px] font-semibold text-slate-700">
                 Luồng phê duyệt
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Tên luồng:</span>
-                  <p className="text-sm text-gray-800">{formTemplate.workflowId?.name || "Không có tên luồng"}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Các bước phê duyệt:</span>
-                  <div className="mt-2 space-y-2">
-                    {workflowSteps.length > 0 ? (
-                      workflowSteps.map((step, index) => {
-                        const instanceStep = workflowInstance[index]
-                        const isCompleted = instanceStep && instanceStep.status === "approved"
-                        const isCurrent = index === submission.currentStep
-                        const isRejected = instanceStep && instanceStep.status === "rejected"
-                        const isFeedbackRequested = instanceStep && instanceStep.status === "feedback"
-                        const stepStatus = isCompleted ? "Đã hoàn thành" : isRejected ? "Đã từ chối" : isFeedbackRequested ? "Yêu cầu phản hồi" : isCurrent ? "Đang chờ" : "Chưa bắt đầu"
-                        const statusClass = 
-                          isCompleted
-                          ? "bg-green-100 text-green-800"
-                          : isRejected
-                          ? "bg-red-100 text-red-800"
-                          : isFeedbackRequested
-                          ? "bg-blue-100 text-blue-800"
-                          : isCurrent
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-gray-100 text-gray-800"
-                        return (
-                          <div key={step._id || index} className={`text-xs p-2 rounded ${statusClass} hover:bg-opacity-80 transition-colors duration-200`}>
-                            <span className="font-medium">Bước {index + 1}:</span>{" "}
-                            {step.roleId?.displayName || step.roleId?.toString() || "Không xác định"} ({stepStatus})
-                          </div>
-                        )
-                      })
-                    ) : (
-                      <p className="text-sm text-gray-500">Không có bước phê duyệt nào.</p>
-                    )}
-                  </div>
-                </div>
+              </h2>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <p className="text-[11px] text-slate-400">Tên luồng</p>
+                <p className="text-[13px] font-medium text-slate-800 mt-0.5">
+                  {formTemplate.workflowId?.name || "N/A"}
+                </p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-            <CardHeader>
-              <CardTitle className="text-blue-800">Lịch sử phê duyệt</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {submission.approvalHistory.length > 0 ? (
-                  submission.approvalHistory.map((historyItem, index) => (
-                    <div key={index} className="border-b border-gray-200 pb-3 last:border-b-0 hover:bg-gray-50 transition-colors duration-200">
-                      <div className="flex items-center space-x-2 text-sm font-medium">
-                        {historyItem.action === "approve" && <Check className="h-4 w-4 text-green-600" />}
-                        {historyItem.action === "reject" && <X className="h-4 w-4 text-red-600" />}
-                        {historyItem.action === "feedback" && <MessageSquare className="h-4 w-4 text-blue-600" />}
-                        {historyItem.action === "submitted" && <FileText className="h-4 w-4 text-gray-600" />}
-                        <span className="text-gray-800">
-                          {(historyItem.approverId as any)?.name || "Hệ thống"} đã{" "}
-                          {actionLabels[historyItem.action as keyof typeof actionLabels]}
+              <div className="space-y-2">
+                {workflowSteps.length > 0 ? (
+                  workflowSteps.map((step, i) => {
+                    const inst = workflowInstance[i];
+                    const s =
+                      inst?.status === "approved"
+                        ? "approved"
+                        : inst?.status === "rejected"
+                          ? "rejected"
+                          : inst?.status === "feedback"
+                            ? "feedback"
+                            : i === submission.currentStep
+                              ? "pending"
+                              : "idle";
+                    const cfg = stepStatusConfig[s];
+                    return (
+                      <div
+                        key={step._id || i}
+                        className={cn(
+                          "flex items-center justify-between px-3 py-2 rounded-lg text-[12px]",
+                          cfg.className,
+                        )}
+                      >
+                        <span>
+                          Bước {i + 1}: {step.roleId?.displayName || "N/A"}
+                        </span>
+                        <span className="text-[10px] font-medium opacity-70">
+                          {cfg.label}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
-                        <Clock className="inline-block h-3 w-3 mr-1" />
-                        {new Date(historyItem.timestamp).toLocaleString()}
-                      </p>
-                      {historyItem.comment && (
-                        <p className="text-sm text-gray-700 mt-1 italic">"{historyItem.comment}"</p>
-                      )}
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
-                  <p className="text-gray-500">Chưa có lịch sử phê duyệt.</p>
+                  <p className="text-[12px] text-slate-400">
+                    Không có bước nào.
+                  </p>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
+          {/* Approval history */}
+          <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40">
+              <h2 className="text-[13px] font-semibold text-slate-700">
+                Lịch sử phê duyệt
+              </h2>
+            </div>
+            <div className="px-5 py-4">
+              {submission.approvalHistory.length > 0 ? (
+                <div className="space-y-3">
+                  {submission.approvalHistory.map((h, i) => {
+                    const IconComp =
+                      actionIcons[h.action as keyof typeof actionIcons] ??
+                      FileText;
+                    const iconColor =
+                      h.action === "approve"
+                        ? "text-emerald-500"
+                        : h.action === "reject"
+                          ? "text-red-500"
+                          : h.action === "feedback"
+                            ? "text-sky-500"
+                            : "text-slate-400";
+                    return (
+                      <div key={i} className="flex gap-3">
+                        <div
+                          className={cn(
+                            "h-6 w-6 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0 mt-0.5",
+                            iconColor,
+                          )}
+                        >
+                          <IconComp className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-medium text-slate-800">
+                            {(h.approverId as any)?.name || "Hệ thống"} ·{" "}
+                            {
+                              actionLabels[
+                                h.action as keyof typeof actionLabels
+                              ]
+                            }
+                          </p>
+                          <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                            <Clock className="h-3 w-3" />
+                            {new Date(h.timestamp).toLocaleString("vi-VN")}
+                          </p>
+                          {h.comment && (
+                            <p className="text-[11px] text-slate-600 italic mt-1 bg-slate-50 rounded-md px-2 py-1">
+                              "{h.comment}"
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[12px] text-slate-400">
+                  Chưa có lịch sử phê duyệt.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
           {canApprove ? (
-            <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-              <CardHeader>
-                <CardTitle className="text-blue-800">Hành động phê duyệt</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40">
+                <h2 className="text-[13px] font-semibold text-slate-700">
+                  Hành động phê duyệt
+                </h2>
+              </div>
+              <div className="px-5 py-4 space-y-3">
                 <div>
-                  <Label htmlFor="comment" className="text-gray-700">Lí do (Nếu từ chối hoặc phản hồi biểu mẫu)</Label>
+                  <Label
+                    htmlFor="comment"
+                    className="text-[12px] font-medium text-slate-600"
+                  >
+                    Lý do (nếu từ chối hoặc phản hồi)
+                  </Label>
                   <Textarea
                     id="comment"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    placeholder="Nhập lí do..."
+                    placeholder="Nhập lý do..."
                     rows={3}
-                    disabled={isApproving || isRejecting || isFeedbacking}
-                    className="border-blue-200 focus:ring-blue-500"
+                    disabled={!!actionLoading}
+                    className="mt-1.5 text-[12.5px] border-slate-200 focus:border-sky-300 focus:ring-sky-200"
                   />
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex gap-2">
                   <Button
-                    className="flex-1 bg-green-600 hover:bg-green-700 transition-colors duration-200"
                     onClick={() => handleAction("approve")}
-                    disabled={isApproving || isRejecting || isFeedbacking}
+                    disabled={!!actionLoading}
+                    className="flex-1 h-8 text-[12px] bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg gap-1.5"
                   >
-                    <ButtonLoading isLoading={isApproving} loadingText="Đang duyệt...">
-                      <Check className="h-4 w-4 mr-2" />
-                      Duyệt
+                    <ButtonLoading
+                      isLoading={actionLoading === "approve"}
+                      loadingText="..."
+                    >
+                      <Check className="h-3.5 w-3.5" /> Duyệt
                     </ButtonLoading>
                   </Button>
                   <Button
-                    className="flex-1 bg-red-600 hover:bg-red-700 transition-colors duration-200"
                     onClick={() => handleAction("reject")}
-                    disabled={isApproving || isRejecting || isFeedbacking}
+                    disabled={!!actionLoading}
+                    className="flex-1 h-8 text-[12px] bg-red-500 hover:bg-red-600 text-white rounded-lg gap-1.5"
                   >
-                    <ButtonLoading isLoading={isRejecting} loadingText="Đang từ chối...">
-                      <X className="h-4 w-4 mr-2" />
-                      Từ chối
+                    <ButtonLoading
+                      isLoading={actionLoading === "reject"}
+                      loadingText="..."
+                    >
+                      <X className="h-3.5 w-3.5" /> Từ chối
                     </ButtonLoading>
                   </Button>
                   <Button
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
                     onClick={() => handleAction("feedback")}
-                    disabled={isApproving || isRejecting || isFeedbacking}
+                    disabled={!!actionLoading}
+                    className="flex-1 h-8 text-[12px] bg-sky-600 hover:bg-sky-700 text-white rounded-lg gap-1.5"
                   >
-                    <ButtonLoading isLoading={isFeedbacking} loadingText="Đang gửi...">
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Phản hồi
+                    <ButtonLoading
+                      isLoading={actionLoading === "feedback"}
+                      loadingText="..."
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" /> Phản hồi
                     </ButtonLoading>
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ) : (
-            <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-              <CardContent>
-                <p className="text-sm text-gray-600">
-                  Bạn không thể thực hiện hành động phê duyệt. Vui lòng kiểm tra vai trò, phòng ban hoặc trạng thái biểu mẫu.
-                </p>
-              </CardContent>
-            </Card>
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl px-5 py-4">
+              <p className="text-[12px] text-amber-700">
+                Bạn không có quyền thực hiện hành động phê duyệt tại bước này.
+              </p>
+            </div>
           )}
         </div>
       </div>
     </div>
-  )
+  );
 }

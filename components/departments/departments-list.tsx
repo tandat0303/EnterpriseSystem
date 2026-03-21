@@ -1,234 +1,289 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { LoadingCard, LoadingSpinner } from "@/components/ui/loading"
-import { Search, Edit, Trash2, Building } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
-import { apiClient } from "@/lib/api-client"
-import type { Department, User } from "@/types"
-import { ViewToggleButton } from "@/components/ui/view-toggle-button"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LoadingCard, LoadingSpinner } from "@/components/ui/loading";
+import { Search, Edit, Trash2, Building, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api-client";
+import type { Department, User } from "@/types";
+import { ViewToggleButton } from "@/components/ui/view-toggle-button";
+import { cn } from "@/lib/utils";
+
+const statusConfig = {
+  active: {
+    label: "Hoạt động",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  inactive: {
+    label: "Không hoạt động",
+    className: "bg-slate-100 text-slate-500 border-slate-200",
+  },
+};
+
+const selectClass =
+  "h-9 pl-3 pr-8 text-[12.5px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-sky-300 focus:ring-1 focus:ring-sky-200 appearance-none cursor-pointer";
 
 export function DepartmentsList() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [isLoading, setIsLoading] = useState(true)
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const router = useRouter()
-  const { toast } = useToast()
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const router = useRouter();
+  const { toast } = useToast();
 
   const fetchDepartments = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const queryParams: Record<string, string> = {}
-      if (statusFilter !== "all") queryParams.includeInactive = "true"
-      if (searchTerm) queryParams.searchTerm = searchTerm
-
-      const data: Department[] = await apiClient.get("/api/departments", { params: queryParams })
-      if (Array.isArray(data)) {
-        setDepartments(data)
-      } else {
-        console.error("API /api/departments did not return an array:", data)
-        setDepartments([])
-        toast({
-          title: "Lỗi dữ liệu",
-          description: "Dữ liệu phòng ban không hợp lệ.",
-          variant: "destructive",
-        })
-      }
+      const params: Record<string, string> = {};
+      if (statusFilter !== "all") params.includeInactive = "true";
+      if (searchTerm) params.searchTerm = searchTerm;
+      const data: Department[] = await apiClient.get("/api/departments", {
+        params,
+      });
+      setDepartments(Array.isArray(data) ? data : []);
     } catch (error: any) {
-      console.error("Failed to fetch departments:", error)
-      setDepartments([])
       toast({
         title: "Lỗi",
-        description: error.message || "Không thể tải danh sách phòng ban.",
+        description: error.message || "Không thể tải phòng ban.",
         variant: "destructive",
-      })
+      });
+      setDepartments([]);
     } finally {
-      setIsLoading(false)
-      setIsSearching(false)
+      setIsLoading(false);
+      setIsSearching(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchDepartments()
-  }, [statusFilter])
-
+    fetchDepartments();
+  }, [statusFilter]);
   useEffect(() => {
-    const handler = setTimeout(() => {
-      if (searchTerm !== "") {
-        setIsSearching(true)
-      }
-      fetchDepartments()
-    }, 500)
-    return () => clearTimeout(handler)
-  }, [searchTerm])
-
-  const statusColors = {
-    active: "bg-green-100 text-green-800",
-    inactive: "bg-red-100 text-red-800",
-  }
-
-  const statusLabels = {
-    active: "Hoạt động",
-    inactive: "Không hoạt động",
-  }
-
-  const handleEdit = (id: string) => {
-    router.push(`/departments/${id}/edit`)
-  }
+    const t = setTimeout(() => {
+      if (searchTerm !== "") setIsSearching(true);
+      fetchDepartments();
+    }, 500);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa phòng ban "${name}"?`)) {
-      return
-    }
+    if (!confirm(`Xóa phòng ban "${name}"?`)) return;
     try {
-      await apiClient.delete(`/api/departments/${id}`)
+      await apiClient.delete(`/api/departments/${id}`);
       toast({
-        title: "Đã xóa phòng ban",
-        description: `Phòng ban "${name}" đã được xóa thành công`,
-      })
-      fetchDepartments()
+        title: "Đã xóa",
+        description: `Phòng ban "${name}" đã được xóa.`,
+      });
+      fetchDepartments();
     } catch (error: any) {
-      console.error("Delete department failed:", error)
       toast({
         title: "Lỗi",
         description: error.message,
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
-  if (isLoading) {
+  if (isLoading)
     return (
-      <div className="space-y-6 bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <div className="h-10 bg-gray-200 rounded animate-pulse" />
-          </div>
-          <div className="w-48 h-10 bg-gray-200 rounded animate-pulse" />
-          <div className="w-32 h-10 bg-gray-200 rounded animate-pulse" />
-        </div>
-        <div className="grid grid-cols-1 gap-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <LoadingCard key={i} />
-          ))}
-        </div>
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <LoadingCard key={i} className="h-14" />
+        ))}
       </div>
-    )
-  }
+    );
 
   return (
-    <div className="space-y-6 bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-sm">
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-400 h-4 w-4" />
-          {isSearching && <LoadingSpinner size="sm" className="absolute right-3 top-1/2 transform -translate-y-1/2" />}
+    <div className="space-y-5">
+      {/* Toolbar */}
+      <div className="flex flex-wrap gap-2 items-center bg-white rounded-xl border border-slate-100 px-4 py-3">
+        <div className="relative flex-1 min-w-[160px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+          {isSearching && (
+            <LoadingSpinner
+              size="sm"
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+            />
+          )}
           <Input
             placeholder="Tìm kiếm phòng ban..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-10 border-blue-200 focus:ring-blue-500"
+            className="pl-9 h-9 text-[12.5px] border-slate-200 focus:border-sky-300 focus:ring-sky-200"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
-        >
-          <option value="all">Tất cả trạng thái</option>
-          <option value="active">Hoạt động</option>
-          <option value="inactive">Không hoạt động</option>
-        </select>
+        <div className="relative">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className={selectClass}
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="active">Hoạt động</option>
+            <option value="inactive">Không hoạt động</option>
+          </select>
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+        </div>
         <ViewToggleButton viewMode={viewMode} onViewChange={setViewMode} />
       </div>
 
-      <div className={`${viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "flex flex-col gap-3"}`}>
-        {departments.map((dept) => (
-          <Card
-            key={dept._id}
-            className={`bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300 ${
-              viewMode === "list" ? "w-full py-2 px-3" : ""
-            }`}
-          >
-            <CardHeader className={`${viewMode === "list" ? "p-2" : ""}`}>
-              <div className="flex items-start justify-between">
-                <CardTitle className={`flex items-center ${viewMode === "list" ? "text-sm" : "text-lg"} text-blue-800`}>
-                  <Building className={`mr-2 ${viewMode === "list" ? "h-4 w-4" : "h-5 w-5"}`} />
-                  {dept.name}
-                </CardTitle>
-                <Badge
-                  className={`${statusColors[dept.status as keyof typeof statusColors]} ${
-                    viewMode === "list" ? "text-xs py-0.5 px-1" : ""
-                  } hover:bg-opacity-80 transition-colors duration-200`}
+      {departments.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-100 py-16 flex flex-col items-center text-center">
+          <div className="h-12 w-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+            <Building className="h-6 w-6 text-slate-300" />
+          </div>
+          <p className="text-[13px] text-slate-500">
+            Không tìm thấy phòng ban nào
+          </p>
+        </div>
+      ) : viewMode === "list" ? (
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden divide-y divide-slate-50">
+          <div className="grid grid-cols-[1fr_80px_140px_120px_100px] gap-4 px-5 py-3 bg-slate-50/60">
+            {["Tên phòng ban", "Mã", "Trưởng phòng", "Ngày tạo", ""].map(
+              (h) => (
+                <span
+                  key={h}
+                  className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider"
                 >
-                  {statusLabels[dept.status as keyof typeof statusLabels]}
-                </Badge>
-              </div>
-              {dept.description && viewMode === "grid" && <p className="text-sm text-gray-600">{dept.description}</p>}
-            </CardHeader>
-            <CardContent className={`${viewMode === "list" ? "p-2" : ""}`}>
-              <div className={`space-y-2 ${viewMode === "list" ? "text-sm" : ""}`}>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Mã phòng ban:</span>
-                  <span className="font-medium text-gray-800">{dept.code || "N/A"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Trưởng phòng:</span>
-                  <span className="font-medium text-gray-800">{(dept.managerId as User)?.name || "Chưa có"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Ngày tạo:</span>
-                  <span className="font-medium text-gray-800">
-                    {new Date(dept.createdAt).toLocaleDateString("vi-VN", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
+                  {h}
+                </span>
+              ),
+            )}
+          </div>
+          {departments.map((dept) => {
+            const status =
+              statusConfig[dept.status as keyof typeof statusConfig];
+            return (
+              <div
+                key={dept._id}
+                className="grid grid-cols-[1fr_80px_140px_120px_100px] gap-4 items-center px-5 py-3.5 hover:bg-slate-50/50 transition-colors group"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                      <Building className="h-3.5 w-3.5 text-slate-500" />
+                    </div>
+                    <p className="text-[13px] font-medium text-slate-800 truncate">
+                      {dept.name}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full border mt-1 ml-8",
+                      status?.className,
+                    )}
+                  >
+                    {status?.label}
                   </span>
                 </div>
-                <div className={`flex space-x-2 ${viewMode === "list" ? "justify-end" : "pt-2"}`}>
+                <p className="text-[12px] text-slate-500 font-mono">
+                  {dept.code || "—"}
+                </p>
+                <p className="text-[12px] text-slate-500 truncate">
+                  {(dept.managerId as User)?.name || "Chưa có"}
+                </p>
+                <p className="text-[12px] text-slate-400">
+                  {new Date(dept.createdAt).toLocaleDateString("vi-VN", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  })}
+                </p>
+                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => router.push(`/departments/${dept._id}/edit`)}
+                    className="h-7 w-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(dept._id, dept.name)}
+                    className="h-7 w-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {departments.map((dept) => {
+            const status =
+              statusConfig[dept.status as keyof typeof statusConfig];
+            return (
+              <div
+                key={dept._id}
+                className="bg-white rounded-2xl border border-slate-100 p-4 hover:border-slate-200 hover:shadow-sm transition-all group"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="h-9 w-9 rounded-xl bg-slate-100 flex items-center justify-center">
+                    <Building className="h-4.5 w-4.5 text-slate-500" />
+                  </div>
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium px-2 py-0.5 rounded-full border",
+                      status?.className,
+                    )}
+                  >
+                    {status?.label}
+                  </span>
+                </div>
+                <p className="text-[13px] font-semibold text-slate-800 mb-0.5">
+                  {dept.name}
+                </p>
+                {dept.code && (
+                  <p className="text-[11px] font-mono text-slate-400 mb-3">
+                    {dept.code}
+                  </p>
+                )}
+                <div className="space-y-1 text-[11.5px] mb-3">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Trưởng phòng</span>
+                    <span className="text-slate-600 font-medium">
+                      {(dept.managerId as User)?.name || "Chưa có"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Ngày tạo</span>
+                    <span className="text-slate-600">
+                      {new Date(dept.createdAt).toLocaleDateString("vi-VN")}
+                    </span>
+                  </div>
+                </div>
+                {dept.description && (
+                  <p className="text-[11px] text-slate-400 line-clamp-2 mb-3">
+                    {dept.description}
+                  </p>
+                )}
+                <div className="flex gap-1.5 pt-3 border-t border-slate-50">
                   <Button
                     size="sm"
-                    variant="outline"
-                    className={`${
-                      viewMode === "list" ? "p-1 h-8 w-8" : "flex-1"
-                    } border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors duration-200`}
-                    onClick={() => handleEdit(dept._id)}
+                    variant="ghost"
+                    onClick={() => router.push(`/departments/${dept._id}/edit`)}
+                    className="flex-1 h-7 text-[11.5px] text-slate-600 hover:bg-slate-100 rounded-lg gap-1"
                   >
-                    <Edit className="h-4 w-4" />
-                    {viewMode === "grid" && <span className="ml-1">Sửa</span>}
+                    <Edit className="h-3 w-3" /> Sửa
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
-                    className={`${
-                      viewMode === "list" ? "p-1 h-8 w-8" : ""
-                    } text-red-600 border-red-600 hover:bg-red-50 transition-colors duration-200`}
+                    variant="ghost"
                     onClick={() => handleDelete(dept._id, dept.name)}
+                    className="h-7 px-2 text-[11.5px] text-red-500 hover:bg-red-50 rounded-lg"
                   >
-                    <Trash2 className="h-4 w-4" />
-                    {viewMode === "grid" && <span className="ml-1">Xóa</span>}
+                    <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {departments.length === 0 && !isLoading && (
-        <div className="text-center py-12">
-          <p className="text-gray-600 text-lg">Không tìm thấy phòng ban nào</p>
-          <p className="text-gray-500 text-sm mt-2">Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc</p>
+            );
+          })}
         </div>
       )}
     </div>
-  )
+  );
 }

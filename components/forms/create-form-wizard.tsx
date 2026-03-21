@@ -1,579 +1,654 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { Plus, X, ArrowRight, ArrowLeft } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
-import { ButtonLoading } from "@/components/ui/loading"
-import { apiClient } from "@/lib/api-client"
-import type { FormField, Workflow, Role, Department } from "@/types"
-import { useAuth } from "@/components/providers/auth-provider"
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns"
-import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker"
-import { vi } from "date-fns/locale"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Plus,
+  X,
+  ArrowRight,
+  ArrowLeft,
+  Check,
+  ChevronDown,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { ButtonLoading } from "@/components/ui/loading";
+import { apiClient } from "@/lib/api-client";
+import type { FormField, Workflow, Role, Department } from "@/types";
+import { useAuth } from "@/components/providers/auth-provider";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
+import { vi } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
-// Hàm định dạng số với dấu chấm phân cách
 const formatNumber = (value: number | string): string => {
-  if (value === "" || value === null || value === undefined) return ""
-  return Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 })
-}
+  if (value === "" || value === null || value === undefined) return "";
+  return Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 });
+};
+
+const inputClass =
+  "h-9 text-[13px] border-slate-200 focus:border-sky-300 focus:ring-1 focus:ring-sky-200";
+const selectClass =
+  "w-full h-9 pl-3 pr-8 text-[13px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-sky-300 focus:ring-1 focus:ring-sky-200 appearance-none";
+
+const steps = [
+  { n: 1, label: "Thông tin cơ bản" },
+  { n: 2, label: "Trường dữ liệu" },
+  { n: 3, label: "Luồng phê duyệt" },
+];
+
+const fieldTypeOptions = [
+  { value: "text", label: "Văn bản" },
+  { value: "textarea", label: "Văn bản dài" },
+  { value: "select", label: "Lựa chọn" },
+  { value: "date", label: "Ngày tháng" },
+  { value: "file", label: "Tệp đính kèm" },
+  { value: "number", label: "Số" },
+];
 
 export function CreateFormWizard() {
-  const { user } = useAuth()
-  const [currentStep, setCurrentStep] = useState(1)
-  const [workflows, setWorkflows] = useState<Workflow[]>([])
-  const [departments, setDepartments] = useState<Department[]>([])
+  const { user } = useAuth();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     category: "",
     fields: [] as FormField[],
     workflowId: "",
-  })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [isLoading, setIsLoading] = useState(false)
-  const { toast } = useToast()
-  const router = useRouter()
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true)
+    const load = async () => {
+      setIsLoading(true);
       try {
-        const [workflowsData, departmentsData] = await Promise.all([
+        const [wf, depts] = await Promise.all([
           apiClient.get<Workflow[]>("/api/workflows"),
-          apiClient.get<Department[]>("/api/departments", { params: { status: "active" } }),
-        ])
-        setWorkflows(Array.isArray(workflowsData) ? workflowsData : [])
-        setDepartments(Array.isArray(departmentsData) ? departmentsData : [])
+          apiClient.get<Department[]>("/api/departments", {
+            params: { status: "active" },
+          }),
+        ]);
+        setWorkflows(Array.isArray(wf) ? wf : []);
+        setDepartments(Array.isArray(depts) ? depts : []);
       } catch (error: any) {
-        console.error("Failed to fetch workflows or departments:", error)
-        setWorkflows([])
-        setDepartments([])
         toast({
           title: "Lỗi",
-          description: error.message || "Không thể tải danh sách luồng phê duyệt hoặc phòng ban.",
+          description: error.message || "Không thể tải dữ liệu.",
           variant: "destructive",
-        })
+        });
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
-    fetchData()
-  }, [toast])
+    };
+    load();
+  }, [toast]);
 
   const validateStep1 = () => {
-    const newErrors: Record<string, string> = {}
-    if (!formData.name || formData.name.trim().length < 3) {
-      newErrors.name = "Tên biểu mẫu phải có ít nhất 3 ký tự."
-    }
-    if (!formData.description || formData.description.trim().length < 10) {
-      newErrors.description = "Mô tả biểu mẫu phải có ít nhất 10 ký tự."
-    }
-    if (!formData.category || !departments.some((dept) => dept.name === formData.category)) {
-      newErrors.category = "Vui lòng chọn một phòng ban hợp lệ."
-    }
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+    const e: Record<string, string> = {};
+    if (!formData.name || formData.name.trim().length < 3)
+      e.name = "Tên biểu mẫu phải có ít nhất 3 ký tự.";
+    if (!formData.description || formData.description.trim().length < 10)
+      e.description = "Mô tả phải có ít nhất 10 ký tự.";
+    if (
+      !formData.category ||
+      !departments.some((d) => d.name === formData.category)
+    )
+      e.category = "Vui lòng chọn một phòng ban hợp lệ.";
+    setErrors(e);
+    return !Object.keys(e).length;
+  };
 
   const validateStep2 = () => {
-    const newErrors: Record<string, string> = {}
-    if (formData.fields.length === 0) {
-      newErrors.fields = "Biểu mẫu phải có ít nhất một trường dữ liệu."
-    } else {
-      formData.fields.forEach((field, index) => {
-        if (!field.label || field.label.trim().length < 1) {
-          newErrors[`field-${index}-label`] = "Nhãn trường không được để trống."
-        }
+    const e: Record<string, string> = {};
+    if (!formData.fields.length)
+      e.fields = "Biểu mẫu phải có ít nhất một trường dữ liệu.";
+    else
+      formData.fields.forEach((f, i) => {
+        if (!f.label?.trim())
+          e[`field-${i}-label`] = "Nhãn trường không được để trống.";
         if (
-          field.type === "select" &&
-          (!field.options || field.options.length === 0 || field.options.some((opt) => opt.trim() === ""))
-        ) {
-          newErrors[`field-${index}-options`] = "Trường lựa chọn phải có ít nhất một tùy chọn và không được trống."
-        }
-        if (field.type === "number" && field.validation) {
-          if (field.validation.min && (!Number.isInteger(Number(field.validation.min)) || isNaN(field.validation.min))) {
-            newErrors[`field-${index}-min`] = "Giá trị tối thiểu phải là một số nguyên hợp lệ."
-          }
-          if (field.validation.max && (!Number.isInteger(Number(field.validation.max)) || isNaN(field.validation.max))) {
-            newErrors[`field-${index}-max`] = "Giá trị tối đa phải là một số nguyên hợp lệ."
-          }
+          f.type === "select" &&
+          (!f.options?.length || f.options.some((o) => !o.trim()))
+        )
+          e[`field-${i}-options`] =
+            "Trường lựa chọn phải có ít nhất một tùy chọn.";
+        if (f.type === "number" && f.validation) {
           if (
-            field.validation.min &&
-            field.validation.max &&
-            Number(field.validation.min) > Number(field.validation.max)
-          ) {
-            newErrors[`field-${index}-range`] = "Giá trị tối thiểu không được lớn hơn giá trị tối đa."
-          }
+            f.validation.min !== undefined &&
+            !Number.isInteger(Number(f.validation.min))
+          )
+            e[`field-${i}-min`] = "Giá trị tối thiểu phải là số nguyên.";
+          if (
+            f.validation.max !== undefined &&
+            !Number.isInteger(Number(f.validation.max))
+          )
+            e[`field-${i}-max`] = "Giá trị tối đa phải là số nguyên.";
+          if (
+            f.validation.min !== undefined &&
+            f.validation.max !== undefined &&
+            Number(f.validation.min) > Number(f.validation.max)
+          )
+            e[`field-${i}-range`] =
+              "Giá trị tối thiểu không được lớn hơn tối đa.";
         }
-      })
-    }
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+      });
+    setErrors(e);
+    return !Object.keys(e).length;
+  };
 
   const validateStep3 = () => {
-    const newErrors: Record<string, string> = {}
-    if (!formData.workflowId) {
-      newErrors.workflowId = "Vui lòng chọn một luồng phê duyệt."
-    }
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+    const e: Record<string, string> = {};
+    if (!formData.workflowId)
+      e.workflowId = "Vui lòng chọn một luồng phê duyệt.";
+    setErrors(e);
+    return !Object.keys(e).length;
+  };
 
   const handleNext = () => {
-    let isValid = false
-    if (currentStep === 1) {
-      isValid = validateStep1()
-    } else if (currentStep === 2) {
-      isValid = validateStep2()
-    }
-
-    if (isValid) {
-      setCurrentStep((prev) => prev + 1)
-    } else {
+    const valid =
+      currentStep === 1
+        ? validateStep1()
+        : currentStep === 2
+          ? validateStep2()
+          : true;
+    if (valid) setCurrentStep((p) => p + 1);
+    else
       toast({
         title: "Lỗi",
-        description: "Vui lòng kiểm tra lại các trường thông tin.",
+        description: "Vui lòng kiểm tra lại thông tin.",
         variant: "destructive",
-      })
-    }
-  }
+      });
+  };
 
   const addField = () => {
-    const newField: FormField = {
-      id: Date.now().toString(),
-      label: "",
-      type: "text",
-      required: false,
-    }
-    setFormData((prev) => ({
-      ...prev,
-      fields: [...prev.fields, newField],
-    }))
-  }
+    setFormData((p) => ({
+      ...p,
+      fields: [
+        ...p.fields,
+        { id: Date.now().toString(), label: "", type: "text", required: false },
+      ],
+    }));
+  };
 
-  const removeField = (id: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      fields: prev.fields.filter((field) => field.id !== id),
-    }))
-  }
-
-  const updateField = (id: string, updates: Partial<FormField>) => {
-    setFormData((prev) => ({
-      ...prev,
-      fields: prev.fields.map((field) => (field.id === id ? { ...field, ...updates } : field)),
-    }))
-  }
+  const removeField = (id: string) =>
+    setFormData((p) => ({ ...p, fields: p.fields.filter((f) => f.id !== id) }));
+  const updateField = (id: string, updates: Partial<FormField>) =>
+    setFormData((p) => ({
+      ...p,
+      fields: p.fields.map((f) => (f.id === id ? { ...f, ...updates } : f)),
+    }));
 
   const handleSubmit = async () => {
     if (!validateStep3()) {
       toast({
         title: "Lỗi",
-        description: "Vui lòng kiểm tra lại các trường thông tin.",
+        description: "Vui lòng chọn luồng phê duyệt.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
-
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      await apiClient.post("/api/forms", {
-        ...formData,
-        createdBy: user?._id,
-      })
-
-      toast({
-        title: "Thành công",
-        description: "Biểu mẫu đã được tạo thành công!",
-      })
-      router.push("/forms")
+      await apiClient.post("/api/forms", { ...formData, createdBy: user?._id });
+      toast({ title: "Thành công", description: "Biểu mẫu đã được tạo!" });
+      router.push("/forms");
     } catch (error: any) {
-      console.error("Create form failed:", error)
-      if (error.code === 11000 || error.response?.data?.code === 11000) {
-        toast({
-          title: "Lỗi",
-          description: `Tên biểu mẫu "${formData.name}" đã tồn tại. Vui lòng chọn tên khác.`,
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "Lỗi",
-          description: error.message || "Có lỗi xảy ra khi tạo biểu mẫu.",
-          variant: "destructive",
-        })
-      }
+      toast({
+        title: "Lỗi",
+        description: error.message || "Có lỗi xảy ra.",
+        variant: "destructive",
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-
-  const renderStep1 = () => (
-    <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-      <CardHeader>
-        <CardTitle className="text-blue-800">Thông tin cơ bản</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <Label htmlFor="name" className="text-gray-700">Tên biểu mẫu *</Label>
-          <Input
-            id="name"
-            value={formData.name}
-            onChange={(e) => {
-              setFormData((prev) => ({ ...prev, name: e.target.value }))
-              setErrors((prev) => ({ ...prev, name: "" }))
-            }}
-            placeholder="Nhập tên biểu mẫu"
-            disabled={isLoading}
-            className="border-blue-200 focus:ring-blue-500"
-          />
-          {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
-        </div>
-        <div>
-          <Label htmlFor="description" className="text-gray-700">Mô tả *</Label>
-          <Textarea
-            id="description"
-            value={formData.description}
-            onChange={(e) => {
-              setFormData((prev) => ({ ...prev, description: e.target.value }))
-              setErrors((prev) => ({ ...prev, description: "" }))
-            }}
-            placeholder="Mô tả chi tiết về biểu mẫu"
-            disabled={isLoading}
-            className="border-blue-200 focus:ring-blue-500"
-          />
-          {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
-        </div>
-        <div>
-          <Label htmlFor="category" className="text-gray-700">Danh mục (Phòng ban) *</Label>
-          <select
-            id="category"
-            value={formData.category}
-            onChange={(e) => {
-              setFormData((prev) => ({ ...prev, category: e.target.value }))
-              setErrors((prev) => ({ ...prev, category: "" }))
-            }}
-            className="w-full px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading || departments.length === 0}
-          >
-            <option value="">{departments.length === 0 ? "Không có phòng ban" : "Chọn phòng ban"}</option>
-            {departments.map((dept) => (
-              <option key={dept._id} value={dept.name}>
-                {dept.name}
-              </option>
-            ))}
-          </select>
-          {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category}</p>}
-          {departments.length === 0 && (
-            <p className="text-sm text-red-500 mt-1">Không có phòng ban nào để chọn.</p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  )
-
-  const renderStep2 = () => (
-    <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-blue-800">Thiết kế trường dữ liệu</CardTitle>
-          <Button
-            onClick={addField}
-            size="sm"
-            disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Thêm trường
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {formData.fields.map((field, index) => (
-          <div key={field.id} className="p-4 border border-blue-200 rounded-lg bg-gray-50 hover:bg-blue-50 transition-colors duration-200">
-            <div className="flex items-center justify-between">
-              <Input
-                value={field.label}
-                onChange={(e) => {
-                  updateField(field.id, { label: e.target.value })
-                  setErrors((prev) => ({ ...prev, [`field-${index}-label`]: "" }))
-                }}
-                placeholder="Nhãn trường"
-                className="flex-1 mr-2 border-blue-200 focus:ring-blue-500"
-                disabled={isLoading}
-              />
-              <Button
-                onClick={() => removeField(field.id)}
-                size="sm"
-                variant="outline"
-                className="text-red-600 border-red-600 hover:bg-red-50"
-                disabled={isLoading}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            {errors[`field-${index}-label`] && (
-              <p className="text-red-500 text-sm mt-1">{errors[`field-${index}-label`]}</p>
-            )}
-            <div className="flex items-center space-x-4 mt-2">
-              <select
-                value={field.type}
-                onChange={(e) => updateField(field.id, { type: e.target.value as FormField["type"] })}
-                className="px-3 py-2 border border-blue-200 rounded-md focus:ring-blue-500"
-                disabled={isLoading}
-              >
-                <option value="text">Văn bản</option>
-                <option value="textarea">Văn bản dài</option>
-                <option value="select">Lựa chọn</option>
-                <option value="date">Ngày tháng</option>
-                <option value="file">Tệp đính kèm</option>
-                <option value="number">Số</option>
-              </select>
-              <label className="flex items-center text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={field.required}
-                  onChange={(e) => updateField(field.id, { required: e.target.checked })}
-                  className="mr-2"
-                  disabled={isLoading}
-                />
-                Bắt buộc
-              </label>
-            </div>
-            <div className="mt-2">
-              {field.type === "text" && <Input placeholder="Giá trị văn bản" disabled={true} className="border-blue-200 focus:ring-blue-500" />}
-              {field.type === "textarea" && <Textarea placeholder="Giá trị văn bản dài" disabled={true} className="border-blue-200 focus:ring-blue-500" />}
-              {field.type === "date" && (
-                <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
-                  <DateTimePicker
-                    label="Ngày và giờ"
-                    disabled={true}
-                    minDate={new Date()} // Không cho chọn ngày trước hiện tại
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        variant: "outlined",
-                        sx: {
-                          "& .MuiOutlinedInput-root": {
-                            borderColor: "blue.200",
-                            "&:hover fieldset": { borderColor: "blue.300" },
-                            "&.Mui-focused fieldset": { borderColor: "blue.500" },
-                          },
-                        },
-                      },
-                    }}
-                    format="dd/MM/yyyy HH:mm"
-                  />
-                </LocalizationProvider>
-              )}
-              {field.type === "file" && <Input type="file" disabled={true} className="border-blue-200 focus:ring-blue-500" />}
-              {field.type === "number" && (
-                <div className="space-y-2">
-                  <Input
-                    type="text"
-                    placeholder="Giá trị số"
-                    value={field.validation?.defaultValue ? formatNumber(field.validation.defaultValue) : ""}
-                    disabled={true}
-                    className="border-blue-200 focus:ring-blue-500"
-                  />
-                  <div className="flex space-x-2">
-                    <div>
-                      <Label htmlFor={`min-${field.id}`} className="text-gray-700">Tối thiểu</Label>
-                      <Input
-                        id={`min-${field.id}`}
-                        type="text"
-                        value={field.validation?.min ?? ""}
-                        onChange={(e) => {
-                          const rawValue = e.target.value.replace(/\./g, "")
-                          updateField(field.id, {
-                            validation: { ...field.validation, min: rawValue === "" ? undefined : Number(rawValue) },
-                          })
-                          setErrors((prev) => ({ ...prev, [`field-${index}-min`]: "" }))
-                        }}
-                        placeholder="Số nguyên tối thiểu"
-                        className="border-blue-200 focus:ring-blue-500"
-                        disabled={isLoading}
-                      />
-                      {errors[`field-${index}-min`] && (
-                        <p className="text-red-500 text-sm mt-1">{errors[`field-${index}-min`]}</p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor={`max-${field.id}`} className="text-gray-700">Tối đa</Label>
-                      <Input
-                        id={`max-${field.id}`}
-                        type="text"
-                        value={field.validation?.max ? formatNumber(field.validation.max) : ""}
-                        onChange={(e) => {
-                          const rawValue = e.target.value.replace(/\./g, "")
-                          updateField(field.id, {
-                            validation: { ...field.validation, max: rawValue === "" ? undefined : Number(rawValue) },
-                          })
-                          setErrors((prev) => ({ ...prev, [`field-${index}-max`]: "" }))
-                        }}
-                        placeholder="Số nguyên tối đa"
-                        className="border-blue-200 focus:ring-blue-500"
-                        disabled={isLoading}
-                      />
-                      {errors[`field-${index}-max`] && (
-                        <p className="text-red-500 text-sm mt-1">{errors[`field-${index}-max`]}</p>
-                      )}
-                    </div>
-                  </div>
-                  {errors[`field-${index}-range`] && (
-                    <p className="text-red-500 text-sm mt-1">{errors[`field-${index}-range`]}</p>
-                  )}
-                </div>
-              )}
-              {field.type === "select" && (
-                <div className="space-y-2">
-                  <Input
-                    placeholder="Các lựa chọn (cách nhau bởi dấu phẩy)"
-                    value={field.options?.join(", ") || ""}
-                    onChange={(e) => {
-                      updateField(field.id, { options: e.target.value.split(",").map((opt) => opt.trim()) })
-                      setErrors((prev) => ({ ...prev, [`field-${index}-options`]: "" }))
-                    }}
-                    disabled={isLoading}
-                    className="border-blue-200 focus:ring-blue-500"
-                  />
-                  {errors[`field-${index}-options`] && (
-                    <p className="text-red-500 text-sm mt-1">{errors[`field-${index}-options`]}</p>
-                  )}
-                  <select
-                    className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-blue-500"
-                    disabled={true}
-                  >
-                    {field.options?.map((option, idx) => (
-                      <option key={idx} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                    {(!field.options || field.options.length === 0) && <option>Chưa có lựa chọn</option>}
-                  </select>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-        {formData.fields.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            Chưa có trường nào. Nhấn "Thêm trường" để bắt đầu.
-          </div>
-        )}
-        {errors.fields && <p className="text-red-500 text-sm mt-1">{errors.fields}</p>}
-      </CardContent>
-    </Card>
-  )
-
-  const renderStep3 = () => (
-    <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-      <CardHeader>
-        <CardTitle className="text-blue-800">Chọn luồng phê duyệt</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 gap-4">
-          {workflows.map((workflow) => (
-            <div
-              key={workflow._id}
-              className={`
-                p-4 border rounded-lg cursor-pointer transition-colors duration-200
-                ${formData.workflowId === workflow._id ? "border-blue-500 bg-blue-50" : "border-blue-200 hover:bg-blue-50"}
-              `}
-              onClick={() => {
-                setFormData((prev) => ({ ...prev, workflowId: workflow._id }))
-                setErrors((prev) => ({ ...prev, workflowId: "" }))
-              }}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h4 className="font-medium text-lg text-gray-800">{workflow.name}</h4>
-                  <p className="text-sm text-gray-600 mb-3">{workflow.description}</p>
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-gray-700">Các bước phê duyệt:</p>
-                    {workflow.steps.map((step, index) => (
-                      <div key={index} className="text-xs bg-blue-50 p-2 rounded">
-                        <span className="font-medium">Bước {index + 1}:</span> {(step.roleId as Role)?.displayName || "N/A"}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {formData.workflowId === workflow._id && <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">Đã chọn</Badge>}
-              </div>
-            </div>
-          ))}
-        </div>
-        {workflows.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
-            Chưa có luồng phê duyệt nào. Vui lòng tạo luồng phê duyệt trước.
-          </div>
-        )}
-        {errors.workflowId && <p className="text-red-500 text-sm mt-1">{errors.workflowId}</p>}
-      </CardContent>
-    </Card>
-  )
+  };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-gradient-to-br from-blue-50 to-white rounded-lg shadow-sm">
-      <div className="flex items-center justify-center space-x-4 mb-6">
-        {[1, 2, 3].map((step) => (
-          <div key={step} className="flex items-center">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                currentStep >= step ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"
-              }`}
-            >
-              {step}
+    <div className="space-y-6 max-w-2xl">
+      {/* Step indicator */}
+      <div className="flex items-center gap-0">
+        {steps.map((step, i) => (
+          <div key={step.n} className="flex items-center">
+            <div className="flex items-center gap-2">
+              <div
+                className={cn(
+                  "h-7 w-7 rounded-full flex items-center justify-center text-[12px] font-bold transition-all duration-200",
+                  currentStep > step.n
+                    ? "bg-emerald-500 text-white"
+                    : currentStep === step.n
+                      ? "bg-[#0f172a] text-white"
+                      : "bg-slate-100 text-slate-400",
+                )}
+              >
+                {currentStep > step.n ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  step.n
+                )}
+              </div>
+              <span
+                className={cn(
+                  "text-[12.5px] font-medium hidden sm:block",
+                  currentStep === step.n ? "text-slate-800" : "text-slate-400",
+                )}
+              >
+                {step.label}
+              </span>
             </div>
-            {step < 3 && <div className={`w-16 h-1 ${currentStep > step ? "bg-blue-600" : "bg-gray-200"}`} />}
+            {i < steps.length - 1 && (
+              <div
+                className={cn(
+                  "w-12 sm:w-16 h-px mx-2 sm:mx-3 transition-colors",
+                  currentStep > step.n ? "bg-emerald-300" : "bg-slate-200",
+                )}
+              />
+            )}
           </div>
         ))}
       </div>
 
-      {currentStep === 1 && renderStep1()}
-      {currentStep === 2 && renderStep2()}
-      {currentStep === 3 && renderStep3()}
+      {/* Step 1 */}
+      {currentStep === 1 && (
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40">
+            <h2 className="text-[13px] font-semibold text-slate-700">
+              Thông tin cơ bản
+            </h2>
+          </div>
+          <div className="px-5 py-4 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[12.5px] font-medium text-slate-600">
+                Tên biểu mẫu <span className="text-red-400">*</span>
+              </Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => {
+                  setFormData((p) => ({ ...p, name: e.target.value }));
+                  setErrors((p) => ({ ...p, name: "" }));
+                }}
+                placeholder="VD: Đơn xin nghỉ phép"
+                disabled={isLoading}
+                className={inputClass}
+              />
+              {errors.name && (
+                <p className="text-[11px] text-red-500">{errors.name}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[12.5px] font-medium text-slate-600">
+                Mô tả <span className="text-red-400">*</span>
+              </Label>
+              <Textarea
+                value={formData.description}
+                onChange={(e) => {
+                  setFormData((p) => ({ ...p, description: e.target.value }));
+                  setErrors((p) => ({ ...p, description: "" }));
+                }}
+                placeholder="Mô tả chi tiết về biểu mẫu..."
+                disabled={isLoading}
+                rows={3}
+                className="text-[13px] border-slate-200 focus:border-sky-300 focus:ring-sky-200"
+              />
+              {errors.description && (
+                <p className="text-[11px] text-red-500">{errors.description}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[12.5px] font-medium text-slate-600">
+                Phòng ban <span className="text-red-400">*</span>
+              </Label>
+              <div className="relative">
+                <select
+                  value={formData.category}
+                  onChange={(e) => {
+                    setFormData((p) => ({ ...p, category: e.target.value }));
+                    setErrors((p) => ({ ...p, category: "" }));
+                  }}
+                  className={selectClass}
+                  disabled={isLoading || !departments.length}
+                >
+                  <option value="">
+                    {departments.length
+                      ? "Chọn phòng ban"
+                      : "Không có phòng ban"}
+                  </option>
+                  {departments.map((d) => (
+                    <option key={d._id} value={d.name}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+              {errors.category && (
+                <p className="text-[11px] text-red-500">{errors.category}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
-      <div className="flex justify-between">
+      {/* Step 2 */}
+      {currentStep === 2 && (
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40 flex items-center justify-between">
+            <h2 className="text-[13px] font-semibold text-slate-700">
+              Thiết kế trường dữ liệu
+            </h2>
+            <Button
+              onClick={addField}
+              size="sm"
+              disabled={isLoading}
+              className="h-7 px-3 text-[12px] bg-[#0f172a] hover:bg-slate-800 text-white rounded-lg gap-1"
+            >
+              <Plus className="h-3 w-3" /> Thêm trường
+            </Button>
+          </div>
+          <div className="px-5 py-4 space-y-3">
+            {formData.fields.length === 0 && (
+              <div className="py-8 text-center">
+                <p className="text-[13px] text-slate-400">
+                  Chưa có trường nào. Nhấn "Thêm trường" để bắt đầu.
+                </p>
+              </div>
+            )}
+            {formData.fields.map((field, index) => (
+              <div
+                key={field.id}
+                className="border border-slate-100 rounded-xl p-4 space-y-3 bg-slate-50/40"
+              >
+                {/* Field header */}
+                <div className="flex items-center gap-2">
+                  <span className="h-5 w-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500 flex-shrink-0">
+                    {index + 1}
+                  </span>
+                  <Input
+                    value={field.label}
+                    onChange={(e) => {
+                      updateField(field.id, { label: e.target.value });
+                      setErrors((p) => ({
+                        ...p,
+                        [`field-${index}-label`]: "",
+                      }));
+                    }}
+                    placeholder="Nhãn trường"
+                    className={`${inputClass} flex-1`}
+                    disabled={isLoading}
+                  />
+                  <button
+                    onClick={() => removeField(field.id)}
+                    disabled={isLoading}
+                    className="h-7 w-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors flex-shrink-0"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {errors[`field-${index}-label`] && (
+                  <p className="text-[11px] text-red-500">
+                    {errors[`field-${index}-label`]}
+                  </p>
+                )}
+
+                {/* Type + required */}
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <select
+                      value={field.type}
+                      onChange={(e) =>
+                        updateField(field.id, {
+                          type: e.target.value as FormField["type"],
+                        })
+                      }
+                      className={`${selectClass} w-36`}
+                      disabled={isLoading}
+                    >
+                      {fieldTypeOptions.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                  </div>
+                  <label className="flex items-center gap-1.5 text-[12.5px] text-slate-600 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={field.required}
+                      onChange={(e) =>
+                        updateField(field.id, { required: e.target.checked })
+                      }
+                      className="rounded border-slate-300 text-sky-500"
+                      disabled={isLoading}
+                    />
+                    Bắt buộc
+                  </label>
+                </div>
+
+                {/* Select options */}
+                {field.type === "select" && (
+                  <div className="space-y-1.5">
+                    <Input
+                      value={field.options?.join(", ") || ""}
+                      onChange={(e) => {
+                        updateField(field.id, {
+                          options: e.target.value
+                            .split(",")
+                            .map((o) => o.trim()),
+                        });
+                        setErrors((p) => ({
+                          ...p,
+                          [`field-${index}-options`]: "",
+                        }));
+                      }}
+                      placeholder="Các lựa chọn, cách nhau bởi dấu phẩy"
+                      className={inputClass}
+                      disabled={isLoading}
+                    />
+                    {errors[`field-${index}-options`] && (
+                      <p className="text-[11px] text-red-500">
+                        {errors[`field-${index}-options`]}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Number min/max */}
+                {field.type === "number" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-slate-500">
+                        Tối thiểu
+                      </Label>
+                      <Input
+                        type="text"
+                        value={field.validation?.min ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\./g, "");
+                          updateField(field.id, {
+                            validation: {
+                              ...field.validation,
+                              min: v === "" ? undefined : Number(v),
+                            },
+                          });
+                          setErrors((p) => ({
+                            ...p,
+                            [`field-${index}-min`]: "",
+                          }));
+                        }}
+                        placeholder="Không giới hạn"
+                        className={`${inputClass} font-mono`}
+                        disabled={isLoading}
+                      />
+                      {errors[`field-${index}-min`] && (
+                        <p className="text-[11px] text-red-500">
+                          {errors[`field-${index}-min`]}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-slate-500">
+                        Tối đa
+                      </Label>
+                      <Input
+                        type="text"
+                        value={
+                          field.validation?.max
+                            ? formatNumber(field.validation.max)
+                            : ""
+                        }
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\./g, "");
+                          updateField(field.id, {
+                            validation: {
+                              ...field.validation,
+                              max: v === "" ? undefined : Number(v),
+                            },
+                          });
+                          setErrors((p) => ({
+                            ...p,
+                            [`field-${index}-max`]: "",
+                          }));
+                        }}
+                        placeholder="Không giới hạn"
+                        className={`${inputClass} font-mono`}
+                        disabled={isLoading}
+                      />
+                      {errors[`field-${index}-max`] && (
+                        <p className="text-[11px] text-red-500">
+                          {errors[`field-${index}-max`]}
+                        </p>
+                      )}
+                    </div>
+                    {errors[`field-${index}-range`] && (
+                      <p className="text-[11px] text-red-500 col-span-2">
+                        {errors[`field-${index}-range`]}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            {errors.fields && (
+              <p className="text-[11px] text-red-500">{errors.fields}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Step 3 */}
+      {currentStep === 3 && (
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40">
+            <h2 className="text-[13px] font-semibold text-slate-700">
+              Chọn luồng phê duyệt
+            </h2>
+          </div>
+          <div className="px-5 py-4 space-y-3">
+            {workflows.length === 0 ? (
+              <div className="py-8 text-center">
+                <p className="text-[13px] text-slate-400">
+                  Chưa có luồng phê duyệt. Vui lòng tạo luồng trước.
+                </p>
+              </div>
+            ) : (
+              workflows.map((wf) => (
+                <div
+                  key={wf._id}
+                  className={cn(
+                    "border rounded-xl p-4 cursor-pointer transition-all duration-150",
+                    formData.workflowId === wf._id
+                      ? "border-sky-300 bg-sky-50/50 shadow-sm shadow-sky-100"
+                      : "border-slate-100 hover:border-slate-200 bg-white",
+                  )}
+                  onClick={() => {
+                    setFormData((p) => ({ ...p, workflowId: wf._id }));
+                    setErrors((p) => ({ ...p, workflowId: "" }));
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div
+                          className={cn(
+                            "h-3.5 w-3.5 rounded-full border-2 flex-shrink-0 transition-all",
+                            formData.workflowId === wf._id
+                              ? "border-sky-500 bg-sky-500"
+                              : "border-slate-300",
+                          )}
+                        />
+                        <p className="text-[13px] font-semibold text-slate-800">
+                          {wf.name}
+                        </p>
+                      </div>
+                      {wf.description && (
+                        <p className="text-[12px] text-slate-500 ml-5 mb-2">
+                          {wf.description}
+                        </p>
+                      )}
+                      <div className="ml-5 space-y-1">
+                        {wf.steps.map((step, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2 text-[11.5px] text-slate-500"
+                          >
+                            <span className="h-4 w-4 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-400 flex-shrink-0">
+                              {i + 1}
+                            </span>
+                            {(step.roleId as Role)?.displayName || "N/A"}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+            {errors.workflowId && (
+              <p className="text-[11px] text-red-500">{errors.workflowId}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div className="flex items-center justify-between">
         <Button
-          onClick={() => setCurrentStep((prev) => prev - 1)}
+          onClick={() => setCurrentStep((p) => p - 1)}
           disabled={currentStep === 1 || isLoading}
-          variant="outline"
-          className="border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors duration-200"
+          variant="ghost"
+          className="h-9 px-4 text-[13px] text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg gap-1.5 disabled:opacity-40"
         >
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Quay lại
+          <ArrowLeft className="h-3.5 w-3.5" /> Quay lại
         </Button>
-
         {currentStep < 3 ? (
           <Button
             onClick={handleNext}
             disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
+            className="h-9 px-5 bg-[#0f172a] hover:bg-slate-800 text-white text-[13px] font-medium rounded-lg gap-1.5"
           >
-            Tiếp theo
-            <ArrowRight className="h-4 w-4 ml-1" />
+            Tiếp theo <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         ) : (
           <Button
             onClick={handleSubmit}
             disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
+            className="h-9 px-5 bg-[#0f172a] hover:bg-slate-800 text-white text-[13px] font-medium rounded-lg"
           >
-            <ButtonLoading isLoading={isLoading} loadingText="Đang tạo biểu mẫu...">
+            <ButtonLoading isLoading={isLoading} loadingText="Đang tạo...">
               Tạo biểu mẫu
             </ButtonLoading>
           </Button>
         )}
       </div>
     </div>
-  )
+  );
 }

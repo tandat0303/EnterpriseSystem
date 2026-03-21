@@ -1,17 +1,22 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
-import { ButtonLoading } from "@/components/ui/loading"
-import { apiClient } from "@/lib/api-client"
-import type { Department } from "@/types"
+import type React from "react";
+import { useState, useEffect } from "react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { ButtonLoading } from "@/components/ui/loading";
+import { apiClient } from "@/lib/api-client";
+import { ArrowLeft, ChevronDown } from "lucide-react";
+import type { Department } from "@/types";
+
+const inputClass =
+  "h-9 text-[13px] border-slate-200 focus:border-sky-300 focus:ring-1 focus:ring-sky-200";
+const selectClass =
+  "w-full h-9 pl-3 pr-8 text-[13px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-sky-300 focus:ring-1 focus:ring-sky-200 appearance-none";
 
 export function CreateDepartmentForm() {
   const [formData, setFormData] = useState({
@@ -19,145 +24,164 @@ export function CreateDepartmentForm() {
     description: "",
     managerId: "",
     code: "",
-  })
-  const [isLoading, setIsLoading] = useState(false)
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [departments, setDepartments] = useState<Department[]>([])
-  const { toast } = useToast()
-  const router = useRouter()
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { toast } = useToast();
+  const router = useRouter();
 
-  useEffect(() => {
-    const loadDepartments = async () => {
-      try {
-        const deptData = await apiClient.get<Department[]>("/api/departments")
-        if (Array.isArray(deptData)) {
-          setDepartments(deptData)
-        } else {
-          console.error("API /api/departments did not return an array:", deptData)
-          setDepartments([])
-        }
-      } catch (error: any) {
-        console.error("Error loading departments:", error)
-        toast({
-          title: "Lỗi",
-          description: error.message || "Không thể tải dữ liệu phòng ban.",
-          variant: "destructive",
-        })
-      }
-    }
-    loadDepartments()
-  }, [toast])
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!formData.name || formData.name.trim().length < 2)
+      e.name = "Tên phòng ban phải có ít nhất 2 ký tự.";
+    setErrors(e);
+    return !Object.keys(e).length;
+  };
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {}
-    if (!formData.name || formData.name.trim().length < 2) {
-      newErrors.name = "Tên phòng ban phải có ít nhất 2 ký tự."
-    }
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { id, value } = e.target
-    setFormData((prev) => ({ ...prev, [id]: value }))
-    setErrors((prev) => ({ ...prev, [id]: "" }))
-  }
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
+    const { id, value } = e.target;
+    setFormData((p) => ({ ...p, [id]: value }));
+    setErrors((p) => ({ ...p, [id]: "" }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validateForm()) {
-      toast({
-        title: "Lỗi",
-        description: "Vui lòng kiểm tra lại các trường thông tin.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsLoading(true)
+    e.preventDefault();
+    if (!validate()) return;
+    setIsLoading(true);
     try {
-      const payload = {
+      await apiClient.post("/api/departments", {
         ...formData,
         managerId: formData.managerId || undefined,
         code: formData.code || undefined,
-      }
-
-      await apiClient.post("/api/departments", payload)
-
-      toast({
-        title: "Thành công",
-        description: "Phòng ban đã được tạo thành công!",
-      })
-      router.push("/departments")
+      });
+      toast({ title: "Thành công", description: "Phòng ban đã được tạo!" });
+      router.push("/departments");
     } catch (error: any) {
-      console.error("Create department failed:", error)
       toast({
         title: "Lỗi",
-        description: error.message || "Có lỗi xảy ra khi tạo phòng ban.",
+        description: error.message || "Có lỗi xảy ra.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto bg-gradient-to-br from-gray-50 to-white shadow-lg">
-      <CardHeader>
-        <CardTitle className="text-blue-800">Thông tin phòng ban</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <Label htmlFor="name" className="text-gray-700">Tên phòng ban *</Label>
+    <div className="space-y-5 max-w-xl">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => router.push("/departments")}
+          className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <div>
+          <h1 className="text-lg font-bold text-slate-900">
+            Tạo phòng ban mới
+          </h1>
+          <p className="text-[12px] text-slate-400">
+            Điền thông tin để thêm phòng ban vào hệ thống
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40">
+          <h2 className="text-[13px] font-semibold text-slate-700">
+            Thông tin phòng ban
+          </h2>
+        </div>
+        <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="name"
+              className="text-[12.5px] font-medium text-slate-600"
+            >
+              Tên phòng ban <span className="text-red-400">*</span>
+            </Label>
             <Input
               id="name"
               value={formData.name}
               onChange={handleChange}
               placeholder="Phòng Nhân sự"
               disabled={isLoading}
-              className="border-blue-200 focus:ring-blue-500"
+              className={inputClass}
             />
-            {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+            {errors.name && (
+              <p className="text-red-500 text-[11px]">{errors.name}</p>
+            )}
           </div>
-
-          <div>
-            <Label htmlFor="code" className="text-gray-700">Mã phòng ban</Label>
-            <Input id="code" value={formData.code} onChange={handleChange} placeholder="HR" disabled={isLoading} className="border-blue-200 focus:ring-blue-500" />
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="code"
+              className="text-[12.5px] font-medium text-slate-600"
+            >
+              Mã phòng ban
+            </Label>
+            <Input
+              id="code"
+              value={formData.code}
+              onChange={handleChange}
+              placeholder="HR"
+              disabled={isLoading}
+              className={`${inputClass} font-mono`}
+            />
           </div>
-
-          <div>
-            <Label htmlFor="description" className="text-gray-700">Mô tả</Label>
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="description"
+              className="text-[12.5px] font-medium text-slate-600"
+            >
+              Mô tả
+            </Label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={handleChange}
-              placeholder="Mô tả về chức năng và nhiệm vụ của phòng ban"
+              placeholder="Mô tả chức năng và nhiệm vụ..."
               disabled={isLoading}
-              className="border-blue-200 focus:ring-blue-500"
+              rows={3}
+              className="text-[13px] border-slate-200 focus:border-sky-300 focus:ring-sky-200"
             />
           </div>
-
-          <div>
-            <Label htmlFor="managerId" className="text-gray-700">Trưởng phòng</Label>
-            <select
-              id="managerId"
-              value={formData.managerId}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
-              disabled={isLoading}
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="managerId"
+              className="text-[12.5px] font-medium text-slate-600"
             >
-              <option value="">Phòng ban chưa được tạo</option>
-            </select>
+              Trưởng phòng
+            </Label>
+            <div className="relative">
+              <select
+                id="managerId"
+                value={formData.managerId}
+                onChange={handleChange}
+                className={selectClass}
+                disabled={isLoading}
+              >
+                <option value="">Phòng ban chưa được tạo</option>
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            </div>
           </div>
-
-          <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 transition-colors duration-200" disabled={isLoading}>
-            <ButtonLoading isLoading={isLoading} loadingText="Đang tạo phòng ban...">
-              Tạo phòng ban
-            </ButtonLoading>
-          </Button>
+          <div className="pt-2">
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="h-9 px-5 bg-[#0f172a] hover:bg-slate-800 text-white text-[13px] font-medium rounded-lg"
+            >
+              <ButtonLoading isLoading={isLoading} loadingText="Đang tạo...">
+                Tạo phòng ban
+              </ButtonLoading>
+            </Button>
+          </div>
         </form>
-      </CardContent>
-    </Card>
-  )
+      </div>
+    </div>
+  );
 }

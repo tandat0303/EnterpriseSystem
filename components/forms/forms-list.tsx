@@ -1,274 +1,332 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { LoadingCard, LoadingSpinner } from "@/components/ui/loading"
-import { Search, Edit, Trash2, Eye } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
-import { apiClient } from "@/lib/api-client"
-import type { FormTemplate, Workflow, User, Department } from "@/types"
-import { ViewToggleButton } from "@/components/ui/view-toggle-button"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { LoadingCard, LoadingSpinner } from "@/components/ui/loading";
+import { Search, Edit, Trash2, Eye, FileText, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api-client";
+import type { FormTemplate, Workflow, User, Department } from "@/types";
+import { ViewToggleButton } from "@/components/ui/view-toggle-button";
+import { cn } from "@/lib/utils";
+
+const statusConfig = {
+  active: {
+    label: "Hoạt động",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  draft: {
+    label: "Bản nháp",
+    className: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  inactive: {
+    label: "Không hoạt động",
+    className: "bg-slate-100 text-slate-500 border-slate-200",
+  },
+};
+
+const selectClass =
+  "h-9 pl-3 pr-8 text-[12.5px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-sky-300 focus:ring-1 focus:ring-sky-200 appearance-none cursor-pointer";
 
 export function FormsList() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [isLoading, setIsLoading] = useState(true)
-  const [forms, setForms] = useState<FormTemplate[]>([])
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const router = useRouter()
-  const { toast } = useToast()
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [forms, setForms] = useState<FormTemplate[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const router = useRouter();
+  const { toast } = useToast();
 
   const fetchData = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const queryParams: Record<string, string> = {}
-      if (categoryFilter !== "all") queryParams.category = categoryFilter
-      if (statusFilter !== "all") queryParams.status = statusFilter
-      if (searchTerm) queryParams.searchTerm = searchTerm
-
-      const [formsData, departmentsData] = await Promise.all([
-        apiClient.get<FormTemplate[]>("/api/forms", { params: queryParams }),
-        apiClient.get<Department[]>("/api/departments", { params: { status: "active" } }),
-      ])
-
-      setForms(Array.isArray(formsData) ? formsData : [])
-      setDepartments(Array.isArray(departmentsData) ? departmentsData : [])
+      const params: Record<string, string> = {};
+      if (categoryFilter !== "all") params.category = categoryFilter;
+      if (statusFilter !== "all") params.status = statusFilter;
+      if (searchTerm) params.searchTerm = searchTerm;
+      const [formsData, deptsData] = await Promise.all([
+        apiClient.get<FormTemplate[]>("/api/forms", { params }),
+        apiClient.get<Department[]>("/api/departments", {
+          params: { status: "active" },
+        }),
+      ]);
+      setForms(Array.isArray(formsData) ? formsData : []);
+      setDepartments(Array.isArray(deptsData) ? deptsData : []);
     } catch (error: any) {
-      console.error("Failed to fetch forms or departments:", error)
-      setForms([])
-      setDepartments([])
       toast({
         title: "Lỗi",
-        description: error.message || "Không thể tải danh sách biểu mẫu hoặc phòng ban.",
+        description: error.message || "Không thể tải dữ liệu.",
         variant: "destructive",
-      })
+      });
+      setForms([]);
+      setDepartments([]);
     } finally {
-      setIsLoading(false)
-      setIsSearching(false)
+      setIsLoading(false);
+      setIsSearching(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchData()
-  }, [categoryFilter, statusFilter])
-
+    fetchData();
+  }, [categoryFilter, statusFilter]);
   useEffect(() => {
-    const handler = setTimeout(() => {
-      if (searchTerm !== "") {
-        setIsSearching(true)
-      }
-      fetchData()
-    }, 500)
-    return () => clearTimeout(handler)
-  }, [searchTerm])
-
-  const statusColors = {
-    active: "bg-green-100 text-green-800 hover:bg-green-200",
-    draft: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200",
-    inactive: "bg-red-100 text-red-800 hover:bg-red-200",
-  }
-
-  const statusLabels = {
-    active: "Hoạt động",
-    draft: "Bản nháp",
-    inactive: "Không hoạt động",
-  }
-
-  const handleView = (id: string) => {
-    router.push(`/forms/${id}`)
-  }
-
-  const handleEdit = (id: string) => {
-    router.push(`/forms/${id}/edit`)
-  }
+    const t = setTimeout(() => {
+      if (searchTerm !== "") setIsSearching(true);
+      fetchData();
+    }, 500);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Bạn có chắc chắn muốn xóa biểu mẫu "${name}"?`)) {
-      return
-    }
+    if (!confirm(`Xóa biểu mẫu "${name}"?`)) return;
     try {
-      await apiClient.delete(`/api/forms/${id}`)
+      await apiClient.delete(`/api/forms/${id}`);
       toast({
-        title: "Đã xóa biểu mẫu",
-        description: `Biểu mẫu "${name}" đã được xóa thành công`,
-      })
-      fetchData()
+        title: "Đã xóa",
+        description: `Biểu mẫu "${name}" đã được xóa.`,
+      });
+      fetchData();
     } catch (error: any) {
-      console.error("Delete form failed:", error)
       toast({
         title: "Lỗi",
         description: error.message,
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
-  if (isLoading) {
+  if (isLoading)
     return (
-      <div className="space-y-6 p-6 bg-gradient-to-br from-blue-50 to-white rounded-lg shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <div className="h-10 bg-gray-200 rounded animate-pulse" />
-          </div>
-          <div className="w-48 h-10 bg-gray-200 rounded animate-pulse" />
-          <div className="w-48 h-10 bg-gray-200 rounded animate-pulse" />
-          <div className="w-32 h-10 bg-gray-200 rounded animate-pulse" />
-        </div>
-        <div className="grid grid-cols-1 gap-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <LoadingCard key={i} className="bg-gradient-to-br from-gray-50 to-white" />
-          ))}
-        </div>
+      <div className="space-y-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <LoadingCard key={i} className="h-14" />
+        ))}
       </div>
-    )
-  }
+    );
 
   return (
-    <div className="space-y-6 p-6 bg-gradient-to-br from-blue-50 to-white rounded-lg shadow-sm">
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-600 h-4 w-4" />
-          {isSearching && <LoadingSpinner size="sm" className="absolute right-3 top-1/2 transform -translate-y-1/2" />}
+    <div className="space-y-5">
+      {/* Toolbar */}
+      <div className="flex flex-wrap gap-2 items-center bg-white rounded-xl border border-slate-100 px-4 py-3">
+        <div className="relative flex-1 min-w-[160px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+          {isSearching && (
+            <LoadingSpinner
+              size="sm"
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+            />
+          )}
           <Input
             placeholder="Tìm kiếm biểu mẫu..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-10 border-blue-200 focus:ring-blue-500"
+            className="pl-9 h-9 text-[12.5px] border-slate-200 focus:border-sky-300 focus:ring-sky-200"
           />
         </div>
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
-          disabled={departments.length === 0}
-        >
-          <option value="all">Tất cả phòng ban</option>
-          {departments.map((dept) => (
-            <option key={dept._id} value={dept.name}>
-              {dept.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
-        >
-          <option value="all">Tất cả trạng thái</option>
-          <option value="active">Hoạt động</option>
-          <option value="draft">Bản nháp</option>
-          <option value="inactive">Không hoạt động</option>
-        </select>
+        <div className="relative">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className={selectClass}
+            disabled={!departments.length}
+          >
+            <option value="all">Tất cả phòng ban</option>
+            {departments.map((d) => (
+              <option key={d._id} value={d.name}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+        </div>
+        <div className="relative">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className={selectClass}
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="active">Hoạt động</option>
+            <option value="draft">Bản nháp</option>
+            <option value="inactive">Không hoạt động</option>
+          </select>
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+        </div>
         <ViewToggleButton viewMode={viewMode} onViewChange={setViewMode} />
       </div>
 
-      <div className={`${viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "flex flex-col gap-3"}`}>
-        {Array.isArray(forms) &&
-          forms.map((form, index) => (
-            <Card
-              key={form._id}
-              className={`bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300 animate-fade-in ${
-                viewMode === "list" ? "w-full py-2 px-3" : ""
-              }`}
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <CardHeader className={`${viewMode === "list" ? "p-2" : ""}`}>
-                <div className="flex items-start justify-between">
-                  <CardTitle className={`text-blue-800 ${viewMode === "list" ? "text-sm" : "text-lg"}`}>{form.name}</CardTitle>
-                  <Badge
-                    className={`${statusColors[form.status as keyof typeof statusColors]} ${
-                      viewMode === "list" ? "text-xs py-0.5 px-1" : ""
-                    } transition-colors duration-200`}
+      {/* Content */}
+      {forms.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-100 py-16 flex flex-col items-center text-center">
+          <div className="h-12 w-12 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+            <FileText className="h-6 w-6 text-slate-300" />
+          </div>
+          <p className="text-[13px] text-slate-500">
+            Không tìm thấy biểu mẫu nào
+          </p>
+          <p className="text-[11px] text-slate-400 mt-1">
+            Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm
+          </p>
+        </div>
+      ) : viewMode === "list" ? (
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden divide-y divide-slate-50">
+          <div className="grid grid-cols-[1fr_120px_140px_100px_80px_100px] gap-4 px-5 py-3 bg-slate-50/60">
+            {[
+              "Tên biểu mẫu",
+              "Phòng ban",
+              "Luồng phê duyệt",
+              "Người tạo",
+              "Lượt dùng",
+              "",
+            ].map((h) => (
+              <span
+                key={h}
+                className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider"
+              >
+                {h}
+              </span>
+            ))}
+          </div>
+          {forms.map((form) => {
+            const status =
+              statusConfig[form.status as keyof typeof statusConfig];
+            return (
+              <div
+                key={form._id}
+                className="grid grid-cols-[1fr_120px_140px_100px_80px_100px] gap-4 items-center px-5 py-3.5 hover:bg-slate-50/50 transition-colors group"
+              >
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-slate-800 truncate">
+                    {form.name}
+                  </p>
+                  <span
+                    className={cn(
+                      "inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full border mt-0.5",
+                      status?.className,
+                    )}
                   >
-                    {statusLabels[form.status as keyof typeof statusLabels]}
-                  </Badge>
+                    {status?.label}
+                  </span>
                 </div>
-                {form.description && viewMode === "grid" && <p className="text-sm text-gray-600">{form.description}</p>}
-              </CardHeader>
-              <CardContent className={`${viewMode === "list" ? "p-2" : ""}`}>
-                <div className={`space-y-2 ${viewMode === "list" ? "text-sm" : ""}`}>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Danh mục:</span>
-                    <span className="font-medium">
-                      {departments.find((dept) => dept.name === form.category)?.name || "Không xác định"}
+                <p className="text-[12px] text-slate-500 truncate">
+                  {departments.find((d) => d.name === form.category)?.name ||
+                    "—"}
+                </p>
+                <p className="text-[12px] text-slate-500 truncate">
+                  {(form.workflowId as Workflow)?.name || "—"}
+                </p>
+                <p className="text-[12px] text-slate-500 truncate">
+                  {(form.createdBy as User)?.name || "—"}
+                </p>
+                <p className="text-[12px] text-slate-500">
+                  {form.usageCount ?? 0}
+                </p>
+                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => router.push(`/forms/${form._id}`)}
+                    className="h-7 w-7 rounded-lg hover:bg-sky-50 flex items-center justify-center text-slate-400 hover:text-sky-500 transition-colors"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => router.push(`/forms/${form._id}/edit`)}
+                    className="h-7 w-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    <Edit className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(form._id, form.name)}
+                    className="h-7 w-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {forms.map((form) => {
+            const status =
+              statusConfig[form.status as keyof typeof statusConfig];
+            return (
+              <div
+                key={form._id}
+                className="bg-white rounded-2xl border border-slate-100 p-4 hover:border-slate-200 hover:shadow-sm transition-all group"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">
+                    <FileText className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium px-2 py-0.5 rounded-full border",
+                      status?.className,
+                    )}
+                  >
+                    {status?.label}
+                  </span>
+                </div>
+                <p className="text-[13px] font-semibold text-slate-800 mb-1 truncate">
+                  {form.name}
+                </p>
+                {form.description && (
+                  <p className="text-[11px] text-slate-400 line-clamp-2 mb-3">
+                    {form.description}
+                  </p>
+                )}
+                <div className="space-y-1 mb-3">
+                  <div className="flex justify-between text-[11.5px]">
+                    <span className="text-slate-400">Phòng ban</span>
+                    <span className="text-slate-600 font-medium truncate max-w-[120px]">
+                      {departments.find((d) => d.name === form.category)
+                        ?.name || "—"}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Luồng phê duyệt:</span>
-                    <span className="font-medium">{(form.workflowId as Workflow)?.name || "N/A"}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Người tạo:</span>
-                    <span className="font-medium">{(form.createdBy as User)?.name || "N/A"}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Ngày tạo:</span>
-                    <span className="font-medium">
-                      {new Date(form.createdAt).toLocaleDateString("vi-VN", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      })}
+                  <div className="flex justify-between text-[11.5px]">
+                    <span className="text-slate-400">Lượt dùng</span>
+                    <span className="text-slate-600 font-medium">
+                      {form.usageCount ?? 0}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Số lượt sử dụng:</span>
-                    <span className="font-medium">{form.usageCount}</span>
-                  </div>
-                  <div className={`flex space-x-2 ${viewMode === "list" ? "justify-end" : "pt-2"}`}>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={`${
-                        viewMode === "list" ? "p-1 h-8 w-8" : "flex-1"
-                      } bg-transparent border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors duration-200`}
-                      onClick={() => handleView(form._id)}
-                    >
-                      <Eye className="h-4 w-4" />
-                      {viewMode === "grid" && <span className="ml-1">Xem</span>}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={`${
-                        viewMode === "list" ? "p-1 h-8 w-8" : "flex-1"
-                      } bg-transparent border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors duration-200`}
-                      onClick={() => handleEdit(form._id)}
-                    >
-                      <Edit className="h-4 w-4" />
-                      {viewMode === "grid" && <span className="ml-1">Sửa</span>}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className={`${
-                        viewMode === "list" ? "p-1 h-8 w-8" : ""
-                      } text-red-600 border-red-600 hover:bg-red-50 bg-transparent transition-colors duration-200`}
-                      onClick={() => handleDelete(form._id, form.name)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {viewMode === "grid" && <span className="ml-1">Xóa</span>}
-                    </Button>
-                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-      </div>
-
-      {forms.length === 0 && !isLoading && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">Không tìm thấy biểu mẫu nào</p>
-          <p className="text-gray-400 text-sm mt-2">Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc</p>
+                <div className="flex gap-1.5 pt-3 border-t border-slate-50">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => router.push(`/forms/${form._id}`)}
+                    className="flex-1 h-7 text-[11.5px] text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded-lg gap-1"
+                  >
+                    <Eye className="h-3 w-3" /> Xem
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => router.push(`/forms/${form._id}/edit`)}
+                    className="flex-1 h-7 text-[11.5px] text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-lg gap-1"
+                  >
+                    <Edit className="h-3 w-3" /> Sửa
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDelete(form._id, form.name)}
+                    className="h-7 px-2 text-[11.5px] text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
-  )
+  );
 }

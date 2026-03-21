@@ -1,22 +1,22 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { Search } from "lucide-react"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
+import type React from "react";
+import { Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
-export function SearchForm({ className, ...props }: React.ComponentProps<"form">) {
+export function SearchForm({
+  className,
+  ...props
+}: React.ComponentProps<"form">) {
   return (
-    <form className={`relative ${className}`} {...props}>
-      <Label htmlFor="search" className="sr-only">
-        Search
-      </Label>
+    <form className={cn("relative", className)} {...props}>
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
       <Input
         id="search"
-        placeholder="Search the docs..."
-        className="pl-8 pr-4 py-2 w-full"
+        placeholder="Tìm kiếm..."
+        className="pl-9 pr-4 h-9 text-[13px] border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-slate-400"
       />
-      <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 select-none opacity-50" />
     </form>
-  )
+  );
 }

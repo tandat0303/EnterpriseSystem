@@ -1,14 +1,13 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { LoadingCard } from "@/components/ui/loading"
-import { Clock } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { apiClient } from "@/lib/api-client"
-import type { AuditLog, User } from "@/types"
-import { ViewToggleButton } from "@/components/ui/view-toggle-button"
+import { useState, useEffect } from "react";
+import { Clock, Filter } from "lucide-react";
+import { LoadingCard } from "@/components/ui/loading";
+import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api-client";
+import type { AuditLog, User } from "@/types";
+import { ViewToggleButton } from "@/components/ui/view-toggle-button";
+import { cn } from "@/lib/utils";
 
 const resourceTypeLabels: Record<string, string> = {
   FormTemplate: "Biểu mẫu",
@@ -20,211 +19,270 @@ const resourceTypeLabels: Record<string, string> = {
   Role: "Vai trò",
   Permission: "Quyền hạn",
   System: "Hệ thống",
-}
+};
 
-const actionLabels: Record<string, string> = {
-  create: "Tạo mới",
-  update: "Cập nhật",
-  delete: "Xóa",
-  approve: "Phê duyệt",
-  reject: "Từ chối",
-  submit: "Gửi",
-  login: "Đăng nhập",
-  logout: "Đăng xuất",
-}
-
-const actionColors: Record<string, string> = {
-  create: "bg-blue-100 text-blue-800",
-  update: "bg-yellow-100 text-yellow-800",
-  delete: "bg-red-100 text-red-800",
-  approve: "bg-green-100 text-green-800",
-  reject: "bg-orange-100 text-orange-800",
-  submit: "bg-purple-100 text-purple-800",
-  login: "bg-indigo-100 text-indigo-800",
-  logout: "bg-gray-100 text-gray-800",
-}
+const actionConfig: Record<string, { label: string; className: string }> = {
+  create: {
+    label: "Tạo mới",
+    className: "bg-sky-50 text-sky-700 border-sky-200",
+  },
+  update: {
+    label: "Cập nhật",
+    className: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  delete: { label: "Xóa", className: "bg-red-50 text-red-700 border-red-200" },
+  approve: {
+    label: "Phê duyệt",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+  reject: {
+    label: "Từ chối",
+    className: "bg-orange-50 text-orange-700 border-orange-200",
+  },
+  submit: {
+    label: "Gửi",
+    className: "bg-violet-50 text-violet-700 border-violet-200",
+  },
+  login: {
+    label: "Đăng nhập",
+    className: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  },
+  logout: {
+    label: "Đăng xuất",
+    className: "bg-slate-100 text-slate-600 border-slate-200",
+  },
+};
 
 export function AuditLogsList() {
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [filterUserId, setFilterUserId] = useState("all")
-  const [filterResourceType, setFilterResourceType] = useState("all")
-  const [filterAction, setFilterAction] = useState("all")
-  const [users, setUsers] = useState<User[]>([])
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const { toast } = useToast()
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [filterUserId, setFilterUserId] = useState("all");
+  const [filterResourceType, setFilterResourceType] = useState("all");
+  const [filterAction, setFilterAction] = useState("all");
+  const [users, setUsers] = useState<User[]>([]);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const { toast } = useToast();
 
-  const fetchAuditLogs = async () => {
-    setIsLoading(true)
-    try {
-      const queryParams: Record<string, string> = {}
-      if (filterUserId !== "all") queryParams.userId = filterUserId
-      if (filterResourceType !== "all") queryParams.resourceType = filterResourceType
-      if (filterAction !== "all") queryParams.action = filterAction
-
-      const data: AuditLog[] = await apiClient.get("/api/audit-logs", { params: queryParams })
-      if (Array.isArray(data)) {
-        setAuditLogs(data)
-      } else {
-        console.error("API /api/audit-logs did not return an array:", data)
-        setAuditLogs([])
-        toast({
-          title: "Lỗi dữ liệu",
-          description: "Dữ liệu nhật ký kiểm toán không hợp lệ.",
-          variant: "destructive",
-        })
-      }
-    } catch (error: any) {
-      console.error("Failed to fetch audit logs:", error)
-      setAuditLogs([])
-      toast({
-        title: "Lỗi",
-        description: error.message || "Không thể tải nhật ký kiểm toán.",
-        variant: "destructive",
+  useEffect(() => {
+    apiClient
+      .get("/api/users")
+      .then((data: User[]) => {
+        if (Array.isArray(data)) setUsers(data);
       })
-    } finally {
-      setIsLoading(false)
-    }
-  }
+      .catch(() => {});
+  }, []);
 
-  const fetchUsers = async () => {
-    try {
-      const data: User[] = await apiClient.get("/api/users")
-      if (Array.isArray(data)) {
-        setUsers(data)
-      } else {
-        console.error("API /api/users did not return an array:", data)
-        setUsers([])
+  useEffect(() => {
+    const fetchLogs = async () => {
+      setIsLoading(true);
+      try {
+        const params: Record<string, string> = {};
+        if (filterUserId !== "all") params.userId = filterUserId;
+        if (filterResourceType !== "all")
+          params.resourceType = filterResourceType;
+        if (filterAction !== "all") params.action = filterAction;
+        const data: AuditLog[] = await apiClient.get("/api/audit-logs", {
+          params,
+        });
+        setAuditLogs(Array.isArray(data) ? data : []);
+      } catch (error: any) {
+        toast({
+          title: "Lỗi",
+          description: error.message || "Không thể tải nhật ký.",
+          variant: "destructive",
+        });
+        setAuditLogs([]);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error: any) {
-      console.error("Failed to fetch users for filter:", error)
-    }
-  }
+    };
+    fetchLogs();
+  }, [filterUserId, filterResourceType, filterAction]);
 
-  useEffect(() => {
-    fetchUsers()
-  }, [])
-
-  useEffect(() => {
-    fetchAuditLogs()
-  }, [filterUserId, filterResourceType, filterAction])
+  const selectClass =
+    "h-9 px-3 text-[12.5px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-sky-300 focus:ring-1 focus:ring-sky-200 appearance-none cursor-pointer";
 
   if (isLoading) {
     return (
-      <div className="space-y-6 bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="w-full h-10 bg-gray-200 rounded animate-pulse" />
-          <div className="w-48 h-10 bg-gray-200 rounded animate-pulse" />
-          <div className="w-48 h-10 bg-gray-200 rounded animate-pulse" />
-          <div className="w-32 h-10 bg-gray-200 rounded animate-pulse" />
-        </div>
-        <div className="grid grid-cols-1 gap-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <LoadingCard key={i} className="h-32" />
-          ))}
-        </div>
+      <div className="space-y-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <LoadingCard key={i} className="h-14" />
+        ))}
       </div>
-    )
+    );
   }
 
   return (
-    <div className="space-y-6 bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-sm">
-      <h1 className="text-2xl font-bold text-blue-800">Nhật ký hệ thống</h1>
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Nhật ký hệ thống</h1>
+          <p className="text-[13px] text-slate-500 mt-0.5">
+            {auditLogs.length} bản ghi
+          </p>
+        </div>
+        <ViewToggleButton viewMode={viewMode} onViewChange={setViewMode} />
+      </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 items-center bg-white rounded-xl border border-slate-100 px-4 py-3">
+        <Filter className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
         <select
           value={filterUserId}
           onChange={(e) => setFilterUserId(e.target.value)}
-          className="px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
+          className={selectClass}
         >
           <option value="all">Tất cả người dùng</option>
-          {Array.isArray(users) &&
-            users.map((user) => (
-              <option key={user._id} value={user._id}>
-                {user.name} ({user.email})
-              </option>
-            ))}
+          {users.map((u) => (
+            <option key={u._id} value={u._id}>
+              {u.name}
+            </option>
+          ))}
         </select>
         <select
           value={filterResourceType}
           onChange={(e) => setFilterResourceType(e.target.value)}
-          className="px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
+          className={selectClass}
         >
           <option value="all">Tất cả tài nguyên</option>
-          {Object.keys(resourceTypeLabels).map((key) => (
-            <option key={key} value={key}>
-              {resourceTypeLabels[key]}
+          {Object.entries(resourceTypeLabels).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
             </option>
           ))}
         </select>
         <select
           value={filterAction}
           onChange={(e) => setFilterAction(e.target.value)}
-          className="px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800"
+          className={selectClass}
         >
           <option value="all">Tất cả hành động</option>
-          {Object.keys(actionLabels).map((key) => (
-            <option key={key} value={key}>
-              {actionLabels[key]}
+          {Object.entries(actionConfig).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v.label}
             </option>
           ))}
         </select>
-        <ViewToggleButton viewMode={viewMode} onViewChange={setViewMode} />
       </div>
 
-      <div className={`${viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "flex flex-col gap-3"}`}>
-        {Array.isArray(auditLogs) && auditLogs.length > 0 ? (
-          auditLogs.map((log) => (
-            <Card
-              key={log._id}
-              className={`bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300 ${
-                viewMode === "list" ? "w-full py-2 px-3" : ""
-              }`}
-            >
-              <CardContent className={`${viewMode === "list" ? "p-2" : "p-4"} space-y-2`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Badge
-                      className={`${actionColors[log.action]} ${
-                        viewMode === "list" ? "text-xs py-0.5 px-1" : ""
-                      } hover:bg-opacity-80 transition-colors duration-200`}
-                    >
-                      {actionLabels[log.action]}
-                    </Badge>
-                    <span className={`font-medium text-gray-700 ${viewMode === "list" ? "text-sm" : "text-sm"}`}>
-                      {resourceTypeLabels[log.resourceType] || log.resourceType}
-                    </span>
-                  </div>
-                  <span className={`text-gray-500 ${viewMode === "list" ? "text-xs" : "text-xs"}`}>
-                    <Clock className="inline-block h-3 w-3 mr-1" />
+      {/* Logs */}
+      {auditLogs.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-100 py-12 text-center">
+          <p className="text-[13px] text-slate-400">
+            Không tìm thấy nhật ký nào.
+          </p>
+        </div>
+      ) : viewMode === "list" ? (
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden divide-y divide-slate-50">
+          <div className="grid grid-cols-[100px_120px_1fr_140px_120px] gap-4 px-5 py-3 bg-slate-50/60">
+            {[
+              "Hành động",
+              "Tài nguyên",
+              "Mô tả",
+              "Người dùng",
+              "Thời gian",
+            ].map((h) => (
+              <span
+                key={h}
+                className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider"
+              >
+                {h}
+              </span>
+            ))}
+          </div>
+          {auditLogs.map((log) => {
+            const action = actionConfig[log.action] ?? {
+              label: log.action,
+              className: "bg-slate-100 text-slate-600 border-slate-200",
+            };
+            return (
+              <div
+                key={log._id}
+                className="grid grid-cols-[100px_120px_1fr_140px_120px] gap-4 items-center px-5 py-3 hover:bg-slate-50/50 transition-colors"
+              >
+                <span
+                  className={cn(
+                    "inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full border",
+                    action.className,
+                  )}
+                >
+                  {action.label}
+                </span>
+                <span className="text-[12px] text-slate-600">
+                  {resourceTypeLabels[log.resourceType] || log.resourceType}
+                </span>
+                <span className="text-[12px] text-slate-700 truncate">
+                  {log.description}
+                </span>
+                <span className="text-[12px] text-slate-500 truncate">
+                  {(log.userId as User)?.name ||
+                    (log.userId === "system" ? "Hệ thống" : "Ẩn danh")}
+                </span>
+                <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                  <Clock className="h-3 w-3 flex-shrink-0" />
+                  {new Date(log.createdAt).toLocaleString("vi-VN", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  })}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {auditLogs.map((log) => {
+            const action = actionConfig[log.action] ?? {
+              label: log.action,
+              className: "bg-slate-100 text-slate-600 border-slate-200",
+            };
+            return (
+              <div
+                key={log._id}
+                className="bg-white rounded-xl border border-slate-100 p-4 hover:border-slate-200 transition-colors"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span
+                    className={cn(
+                      "inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full border",
+                      action.className,
+                    )}
+                  >
+                    {action.label}
+                  </span>
+                  <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
                     {new Date(log.createdAt).toLocaleString("vi-VN", {
                       day: "2-digit",
                       month: "2-digit",
-                      year: "numeric",
                       hour: "2-digit",
                       minute: "2-digit",
                       hour12: false,
                     })}
                   </span>
                 </div>
-                {viewMode === "grid" && <p className="text-gray-800">{log.description}</p>}
-                <div className={`text-gray-600 ${viewMode === "list" ? "text-xs" : "text-sm"}`}>
-                  Người dùng:{" "}
-                  <span className="font-medium">
-                    {(log.userId as User)?.name || (log.userId === "system" ? "Hệ thống" : "Ẩn danh")}
+                <p className="text-[13px] font-medium text-slate-800 mb-1">
+                  {log.description}
+                </p>
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>
+                    {resourceTypeLabels[log.resourceType] || log.resourceType}
                   </span>
-                  {log.ipAddress && viewMode === "grid" && <span className="ml-4">IP: {log.ipAddress}</span>}
+                  <span>{(log.userId as User)?.name || "Ẩn danh"}</span>
                 </div>
-                {log.resourceId && viewMode === "grid" && (
-                  <div className="text-xs text-gray-500">ID tài nguyên: {log.resourceId}</div>
+                {log.ipAddress && (
+                  <p className="text-[10px] text-slate-300 mt-1">
+                    IP: {log.ipAddress}
+                  </p>
                 )}
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          <div className="text-center py-12 text-gray-600">Không tìm thấy nhật ký kiểm toán nào.</div>
-        )}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
-  )
+  );
 }

@@ -1,541 +1,584 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import type React from "react"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
-import { apiClient } from "@/lib/api-client"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Plus, X } from "lucide-react"
-import type { FormTemplate, Workflow, FormField, Department } from "@/types"
-import { LoadingCard } from "@/components/ui/loading"
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider"
-import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns"
-import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker"
-import { vi } from "date-fns/locale"
+import type React from "react";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus, X, ArrowLeft, Save, ChevronDown } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/navigation";
+import { ButtonLoading, LoadingCard } from "@/components/ui/loading";
+import { apiClient } from "@/lib/api-client";
+import type {
+  FormField,
+  FormTemplate,
+  Workflow,
+  Role,
+  Department,
+} from "@/types";
+import { cn } from "@/lib/utils";
 
-// Hàm định dạng số với dấu chấm phân cách
 const formatNumber = (value: number | string): string => {
-  if (value === "" || value === null || value === undefined) return ""
-  return Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 })
-}
+  if (value === "" || value === null || value === undefined) return "";
+  return Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 0 });
+};
+
+const inputClass =
+  "h-9 text-[13px] border-slate-200 focus:border-sky-300 focus:ring-1 focus:ring-sky-200";
+const selectClass =
+  "w-full h-9 pl-3 pr-8 text-[13px] bg-white border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:border-sky-300 focus:ring-1 focus:ring-sky-200 appearance-none disabled:opacity-50";
+
+const fieldTypeOptions = [
+  { value: "text", label: "Văn bản" },
+  { value: "textarea", label: "Văn bản dài" },
+  { value: "select", label: "Lựa chọn" },
+  { value: "date", label: "Ngày tháng" },
+  { value: "file", label: "Tệp đính kèm" },
+  { value: "number", label: "Số" },
+];
 
 interface EditFormWizardProps {
-  formId: string
+  formId: string;
 }
 
 export function EditFormWizard({ formId }: EditFormWizardProps) {
-  const [formData, setFormData] = useState<FormTemplate | null>(null)
-  const [workflows, setWorkflows] = useState<Workflow[]>([])
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSaving, setIsSaving] = useState(false)
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const router = useRouter()
-  const { toast } = useToast()
+  const [formData, setFormData] = useState<Partial<FormTemplate> | null>(null);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true)
+    const load = async () => {
+      setIsLoading(true);
       try {
-        const [form, workflowsData, departmentsData] = await Promise.all([
-          apiClient.get(`/api/forms/${formId}`),
+        const [form, wf, depts] = await Promise.all([
+          apiClient.get<FormTemplate>(`/api/forms/${formId}`),
           apiClient.get<Workflow[]>("/api/workflows"),
-          apiClient.get<Department[]>("/api/departments", { params: { status: "active" } }),
-        ])
-        setFormData(form)
-        setWorkflows(Array.isArray(workflowsData) ? workflowsData : [])
-        setDepartments(Array.isArray(departmentsData) ? departmentsData : [])
+          apiClient.get<Department[]>("/api/departments", {
+            params: { status: "active" },
+          }),
+        ]);
+        setFormData(form);
+        setWorkflows(Array.isArray(wf) ? wf : []);
+        setDepartments(Array.isArray(depts) ? depts : []);
       } catch (error: any) {
-        console.error("Error loading form data, workflows, or departments:", error)
         toast({
           title: "Lỗi",
-          description: error.message || "Không thể tải dữ liệu biểu mẫu, luồng phê duyệt hoặc phòng ban.",
+          description: error.message || "Không thể tải dữ liệu.",
           variant: "destructive",
-        })
-        router.push("/forms")
+        });
+        router.push("/forms");
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
-    if (formId) {
-      loadData()
-    }
-  }, [formId, router, toast])
+    };
+    load();
+  }, [formId]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => (prev ? { ...prev, [name]: value } : null))
-  }
-
-  const handleWorkflowChange = (value: string) => {
-    setFormData((prev) => (prev ? { ...prev, workflowId: value } : null))
-  }
-
-  const addField = () => {
-    const newField: FormField = {
-      id: Date.now().toString(),
-      label: "",
-      type: "text",
-      required: false,
-    }
-    setFormData((prev) =>
-      prev ? { ...prev, fields: [...prev.fields, newField] } : null
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!formData?.name || formData.name.trim().length < 3)
+      e.name = "Tên biểu mẫu phải có ít nhất 3 ký tự.";
+    if (
+      !formData?.category ||
+      !departments.some((d) => d.name === formData?.category)
     )
-  }
+      e.category = "Vui lòng chọn phòng ban hợp lệ.";
+    if (!formData?.workflowId) e.workflowId = "Vui lòng chọn luồng phê duyệt.";
+    if (!formData?.fields?.length)
+      e.fields = "Biểu mẫu phải có ít nhất một trường.";
+    else
+      formData.fields.forEach((f, i) => {
+        if (!f.label?.trim())
+          e[`field-${i}-label`] = "Nhãn trường không được để trống.";
+        if (
+          f.type === "select" &&
+          (!f.options?.length || f.options.some((o) => !o.trim()))
+        )
+          e[`field-${i}-options`] = "Cần ít nhất một lựa chọn.";
+      });
+    setErrors(e);
+    return !Object.keys(e).length;
+  };
 
-  const removeField = (id: string) => {
-    setFormData((prev) =>
-      prev ? { ...prev, fields: prev.fields.filter((field) => field.id !== id) } : null
-    )
-  }
-
-  const updateField = (id: string, updates: Partial<FormField>) => {
-    setFormData((prev) =>
-      prev
+  const addField = () =>
+    setFormData((p) =>
+      p
         ? {
-            ...prev,
-            fields: prev.fields.map((field) =>
-              field.id === id ? { ...field, ...updates } : field
+            ...p,
+            fields: [
+              ...(p.fields || []),
+              {
+                id: Date.now().toString(),
+                label: "",
+                type: "text",
+                required: false,
+              },
+            ],
+          }
+        : p,
+    );
+  const removeField = (id: string) =>
+    setFormData((p) =>
+      p ? { ...p, fields: (p.fields || []).filter((f) => f.id !== id) } : p,
+    );
+  const updateField = (id: string, updates: Partial<FormField>) =>
+    setFormData((p) =>
+      p
+        ? {
+            ...p,
+            fields: (p.fields || []).map((f) =>
+              f.id === id ? { ...f, ...updates } : f,
             ),
           }
-        : null
-    )
-  }
-
-  const validateFields = () => {
-    const newErrors: Record<string, string> = {}
-    if (!formData?.name || formData.name.trim().length < 3) {
-      newErrors.name = "Tên biểu mẫu phải có ít nhất 3 ký tự."
-    }
-    if (!formData?.description || formData.description.trim().length < 10) {
-      newErrors.description = "Mô tả biểu mẫu phải có ít nhất 10 ký tự."
-    }
-    if (!formData?.category || !departments.some((dept) => dept.name === formData.category)) {
-      newErrors.category = "Vui lòng chọn một phòng ban hợp lệ."
-    }
-    if (formData?.fields.length === 0) {
-      newErrors.fields = "Biểu mẫu phải có ít nhất một trường dữ liệu."
-    } else {
-      formData?.fields.forEach((field, index) => {
-        if (!field.label || field.label.trim().length < 1) {
-          newErrors[`field-${index}-label`] = "Nhãn trường không được để trống."
-        }
-        if (
-          field.type === "select" &&
-          (!field.options || field.options.length === 0 || field.options.some((opt) => opt.trim() === ""))
-        ) {
-          newErrors[`field-${index}-options`] = "Trường lựa chọn phải có ít nhất một tùy chọn và không được trống."
-        }
-        if (field.type === "number" && field.validation) {
-          if (field.validation.min && (!Number.isInteger(Number(field.validation.min)) || isNaN(field.validation.min))) {
-            newErrors[`field-${index}-min`] = "Giá trị tối thiểu phải là một số nguyên hợp lệ."
-          }
-          if (field.validation.max && (!Number.isInteger(Number(field.validation.max)) || isNaN(field.validation.max))) {
-            newErrors[`field-${index}-max`] = "Giá trị tối đa phải là một số nguyên hợp lệ."
-          }
-          if (
-            field.validation.min &&
-            field.validation.max &&
-            Number(field.validation.min) > Number(field.validation.max)
-          ) {
-            newErrors[`field-${index}-range`] = "Giá trị tối thiểu không được lớn hơn giá trị tối đa."
-          }
-        }
-      })
-    }
-    if (!formData?.workflowId) {
-      newErrors.workflowId = "Vui lòng chọn một luồng phê duyệt."
-    }
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
+        : p,
+    );
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!formData) return
-
-    if (!validateFields()) {
+    e.preventDefault();
+    if (!validate()) {
       toast({
         title: "Lỗi",
-        description: "Vui lòng kiểm tra lại các trường thông tin.",
+        description: "Vui lòng kiểm tra lại thông tin.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
-
-    setIsSaving(true)
+    setIsSaving(true);
     try {
-      const updatedForm = await apiClient.put(`/api/forms/${formId}`, {
-        name: formData.name,
-        description: formData.description,
-        category: formData.category,
-        fields: formData.fields,
+      await apiClient.put(`/api/forms/${formId}`, {
+        ...formData,
         workflowId:
-          typeof formData.workflowId === "object"
-            ? formData.workflowId._id
-            : formData.workflowId,
-      })
-      toast({
-        title: "Thành công",
-        description: "Biểu mẫu đã được cập nhật.",
-      })
-      router.push(`/forms/${updatedForm._id}`)
+          typeof formData?.workflowId === "object"
+            ? (formData.workflowId as any)?._id
+            : formData?.workflowId,
+      });
+      toast({ title: "Thành công", description: "Biểu mẫu đã được cập nhật!" });
+      router.push("/forms");
     } catch (error: any) {
-      console.error("Error saving form:", error)
-      if (error.code === 11000 || error.response?.data?.code === 11000) {
-        toast({
-          title: "Lỗi",
-          description: `Tên biểu mẫu "${formData.name}" đã tồn tại. Vui lòng chọn tên khác.`,
-          variant: "destructive",
-        })
-      } else {
-        toast({
-          title: "Lỗi",
-          description: error.message || "Không thể cập nhật biểu mẫu.",
-          variant: "destructive",
-        })
-      }
+      toast({
+        title: "Lỗi",
+        description: error.message || "Có lỗi xảy ra.",
+        variant: "destructive",
+      });
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
-  if (isLoading) {
+  if (isLoading)
     return (
-      <LoadingCard className="w-full max-w-4xl mx-auto h-[600px] bg-gradient-to-br from-blue-50 to-white shadow-sm">
-        <div className="space-y-6">
-          <div className="h-6 bg-gray-200 rounded w-1/2" />
-          <div className="h-8 bg-gray-200 rounded" />
-          <div className="h-8 bg-gray-200 rounded" />
-          <div className="h-20 bg-gray-200 rounded" />
-        </div>
-      </LoadingCard>
-    )
-  }
-
-  if (!formData) {
-    return (
-      <div className="text-center py-12 text-gray-500 bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-sm">
-        Không tìm thấy biểu mẫu.
+      <div className="space-y-4 max-w-2xl">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <LoadingCard key={i} className="h-40" />
+        ))}
       </div>
-    )
-  }
+    );
+
+  if (!formData)
+    return (
+      <div className="py-16 text-center">
+        <p className="text-[13px] text-slate-400">Không tìm thấy biểu mẫu.</p>
+      </div>
+    );
+
+  const currentWorkflowId =
+    typeof formData.workflowId === "object"
+      ? (formData.workflowId as any)?._id
+      : formData.workflowId;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-gradient-to-br from-blue-50 to-white rounded-lg shadow-sm">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <h1 className="text-3xl font-bold text-blue-800 mb-6">Chỉnh sửa biểu mẫu: {formData.name}</h1>
+    <form onSubmit={handleSubmit} className="space-y-5 max-w-2xl">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => router.push("/forms")}
+          className="h-8 w-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <div>
+          <h1 className="text-lg font-bold text-slate-900">
+            Chỉnh sửa biểu mẫu
+          </h1>
+          <p className="text-[12px] text-slate-400">{formData.name}</p>
+        </div>
+      </div>
 
-        <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-          <CardHeader>
-            <CardTitle className="text-blue-800">Thông tin cơ bản</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="name" className="text-gray-700">Tên biểu mẫu *</Label>
-              <Input
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                required
-                disabled={isSaving}
-                className="border-blue-200 focus:ring-blue-500"
-              />
-              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+      {/* Basic info */}
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40">
+          <h2 className="text-[13px] font-semibold text-slate-700">
+            Thông tin cơ bản
+          </h2>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-[12.5px] font-medium text-slate-600">
+              Tên biểu mẫu <span className="text-red-400">*</span>
+            </Label>
+            <Input
+              value={formData.name || ""}
+              onChange={(e) => {
+                setFormData((p) => (p ? { ...p, name: e.target.value } : p));
+                setErrors((p) => ({ ...p, name: "" }));
+              }}
+              disabled={isSaving}
+              className={inputClass}
+            />
+            {errors.name && (
+              <p className="text-[11px] text-red-500">{errors.name}</p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[12.5px] font-medium text-slate-600">
+              Mô tả
+            </Label>
+            <Textarea
+              value={formData.description || ""}
+              onChange={(e) =>
+                setFormData((p) =>
+                  p ? { ...p, description: e.target.value } : p,
+                )
+              }
+              disabled={isSaving}
+              rows={3}
+              className="text-[13px] border-slate-200 focus:border-sky-300 focus:ring-sky-200"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[12.5px] font-medium text-slate-600">
+              Phòng ban <span className="text-red-400">*</span>
+            </Label>
+            <div className="relative">
+              <select
+                value={formData.category || ""}
+                onChange={(e) => {
+                  setFormData((p) =>
+                    p ? { ...p, category: e.target.value } : p,
+                  );
+                  setErrors((p) => ({ ...p, category: "" }));
+                }}
+                className={selectClass}
+                disabled={isSaving || !departments.length}
+              >
+                <option value="">
+                  {departments.length ? "Chọn phòng ban" : "Không có phòng ban"}
+                </option>
+                {departments.map((d) => (
+                  <option key={d._id} value={d.name}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             </div>
-            <div>
-              <Label htmlFor="description" className="text-gray-700">Mô tả</Label>
-              <Textarea
-                id="description"
-                name="description"
-                value={formData.description || ""}
-                onChange={handleChange}
-                disabled={isSaving}
-                className="border-blue-200 focus:ring-blue-500"
-              />
-              {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
-            </div>
-            <div>
-              <Label htmlFor="category" className="text-gray-700">Danh mục (Phòng ban) *</Label>
-              <Select
-                onValueChange={(value) =>
-                  setFormData((prev) => (prev ? { ...prev, category: value } : null))
+            {errors.category && (
+              <p className="text-[11px] text-red-500">{errors.category}</p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[12.5px] font-medium text-slate-600">
+              Trạng thái
+            </Label>
+            <div className="relative">
+              <select
+                value={(formData as any).status || "active"}
+                onChange={(e) =>
+                  setFormData((p) =>
+                    p ? { ...p, status: e.target.value as any } : p,
+                  )
                 }
-                value={formData.category}
-                disabled={isSaving || departments.length === 0}
-              >
-                <SelectTrigger className="border-blue-200 focus:ring-blue-500">
-                  <SelectValue placeholder={departments.length === 0 ? "Không có phòng ban" : "Chọn phòng ban"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept._id} value={dept.name}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category}</p>}
-              {departments.length === 0 && (
-                <p className="text-sm text-red-500 mt-1">Không có phòng ban nào để chọn.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-blue-800">Các trường dữ liệu</CardTitle>
-              <Button
-                onClick={addField}
-                size="sm"
+                className={selectClass}
                 disabled={isSaving}
-                className="bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
               >
-                <Plus className="h-4 w-4 mr-1" />
-                Thêm trường
-              </Button>
+                <option value="active">Hoạt động</option>
+                <option value="draft">Bản nháp</option>
+                <option value="inactive">Không hoạt động</option>
+              </select>
+              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {formData.fields.map((field, index) => (
-              <div key={field.id} className="p-4 border border-blue-200 rounded-lg bg-gray-50 hover:bg-blue-50 transition-colors duration-200">
-                <div className="flex items-center justify-between">
+          </div>
+        </div>
+      </div>
+
+      {/* Fields */}
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40 flex items-center justify-between">
+          <h2 className="text-[13px] font-semibold text-slate-700">
+            Trường dữ liệu
+          </h2>
+          <Button
+            type="button"
+            onClick={addField}
+            size="sm"
+            disabled={isSaving}
+            className="h-7 px-3 text-[12px] bg-[#0f172a] hover:bg-slate-800 text-white rounded-lg gap-1"
+          >
+            <Plus className="h-3 w-3" /> Thêm trường
+          </Button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {!formData.fields?.length ? (
+            <p className="text-center py-6 text-[13px] text-slate-400">
+              Chưa có trường nào. Nhấn "Thêm trường" để bắt đầu.
+            </p>
+          ) : (
+            formData.fields.map((field, index) => (
+              <div
+                key={field.id}
+                className="border border-slate-100 rounded-xl p-4 space-y-3 bg-slate-50/40"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="h-5 w-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500 flex-shrink-0">
+                    {index + 1}
+                  </span>
                   <Input
                     value={field.label}
                     onChange={(e) => {
-                      updateField(field.id, { label: e.target.value })
-                      setErrors((prev) => ({ ...prev, [`field-${index}-label`]: "" }))
+                      updateField(field.id, { label: e.target.value });
+                      setErrors((p) => ({
+                        ...p,
+                        [`field-${index}-label`]: "",
+                      }));
                     }}
                     placeholder="Nhãn trường"
+                    className={`${inputClass} flex-1`}
                     disabled={isSaving}
-                    className="flex-1 mr-2 border-blue-200 focus:ring-blue-500"
                   />
-                  <Button
+                  <button
+                    type="button"
                     onClick={() => removeField(field.id)}
-                    size="sm"
-                    variant="outline"
-                    className="text-red-600 border-red-600 hover:bg-red-50"
-                    disabled={isSaving}
+                    className="h-7 w-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors flex-shrink-0"
                   >
-                    <X className="h-4 w-4" />
-                  </Button>
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 </div>
                 {errors[`field-${index}-label`] && (
-                  <p className="text-red-500 text-sm mt-1">{errors[`field-${index}-label`]}</p>
+                  <p className="text-[11px] text-red-500">
+                    {errors[`field-${index}-label`]}
+                  </p>
                 )}
-                <div className="flex items-center space-x-4 mt-2">
-                  <Select
-                    onValueChange={(value) =>
-                      updateField(field.id, { type: value as FormField["type"] })
-                    }
-                    value={field.type}
-                    disabled={isSaving}
-                  >
-                    <SelectTrigger className="w-[180px] border-blue-200 focus:ring-blue-500">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">Văn bản</SelectItem>
-                      <SelectItem value="textarea">Văn bản dài</SelectItem>
-                      <SelectItem value="select">Lựa chọn</SelectItem>
-                      <SelectItem value="date">Ngày tháng</SelectItem>
-                      <SelectItem value="file">Tệp đính kèm</SelectItem>
-                      <SelectItem value="number">Số</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <label className="flex items-center text-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <select
+                      value={field.type}
+                      onChange={(e) =>
+                        updateField(field.id, {
+                          type: e.target.value as FormField["type"],
+                        })
+                      }
+                      className={`${selectClass} w-36`}
+                      disabled={isSaving}
+                    >
+                      {fieldTypeOptions.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                  </div>
+                  <label className="flex items-center gap-1.5 text-[12.5px] text-slate-600 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={field.required}
                       onChange={(e) =>
                         updateField(field.id, { required: e.target.checked })
                       }
-                      className="mr-2"
+                      className="rounded border-slate-300"
                       disabled={isSaving}
                     />
                     Bắt buộc
                   </label>
                 </div>
-                <div className="mt-2">
-                  {field.type === "text" && (
-                    <Input placeholder="Giá trị văn bản" disabled={true} className="border-blue-200 focus:ring-blue-500" />
-                  )}
-                  {field.type === "textarea" && (
-                    <Textarea placeholder="Giá trị văn bản dài" disabled={true} className="border-blue-200 focus:ring-blue-500" />
-                  )}
-                  {field.type === "date" && (
-                    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={vi}>
-                      <DateTimePicker
-                        label="Ngày và giờ"
-                        disabled={true}
-                        minDate={new Date()} // Không cho chọn ngày trước hiện tại
-                        slotProps={{
-                          textField: {
-                            fullWidth: true,
-                            variant: "outlined",
-                            sx: {
-                              "& .MuiOutlinedInput-root": {
-                                borderColor: "blue.200",
-                                "&:hover fieldset": { borderColor: "blue.300" },
-                                "&.Mui-focused fieldset": { borderColor: "blue.500" },
-                              },
-                            },
-                          },
-                        }}
-                        format="dd/MM/yyyy HH:mm"
-                      />
-                    </LocalizationProvider>
-                  )}
-                  {field.type === "file" && <Input type="file" disabled={true} className="border-blue-200 focus:ring-blue-500" />}
-                  {field.type === "number" && (
-                    <div className="space-y-2">
+                {field.type === "select" && (
+                  <div className="space-y-1.5">
+                    <Input
+                      value={field.options?.join(", ") || ""}
+                      onChange={(e) => {
+                        updateField(field.id, {
+                          options: e.target.value
+                            .split(",")
+                            .map((o) => o.trim()),
+                        });
+                        setErrors((p) => ({
+                          ...p,
+                          [`field-${index}-options`]: "",
+                        }));
+                      }}
+                      placeholder="Các lựa chọn, cách nhau bởi dấu phẩy"
+                      className={inputClass}
+                      disabled={isSaving}
+                    />
+                    {errors[`field-${index}-options`] && (
+                      <p className="text-[11px] text-red-500">
+                        {errors[`field-${index}-options`]}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {field.type === "number" && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-slate-500">
+                        Tối thiểu
+                      </Label>
                       <Input
                         type="text"
-                        placeholder="Giá trị số"
-                        value={field.validation?.defaultValue ? formatNumber(field.validation.defaultValue) : ""}
-                        disabled={true}
-                        className="border-blue-200 focus:ring-blue-500"
-                      />
-                      <div className="flex space-x-2">
-                        <div>
-                          <Label htmlFor={`min-${field.id}`} className="text-gray-700">Tối thiểu</Label>
-                          <Input
-                            id={`min-${field.id}`}
-                            type="text"
-                            value={field.validation?.min ? formatNumber(field.validation.min) : ""}
-                            onChange={(e) => {
-                              const rawValue = e.target.value.replace(/\./g, "")
-                              updateField(field.id, {
-                                validation: { ...field.validation, min: rawValue === "" ? undefined : Number(rawValue) },
-                              })
-                              setErrors((prev) => ({ ...prev, [`field-${index}-min`]: "" }))
-                            }}
-                            placeholder="Số nguyên tối thiểu"
-                            className="border-blue-200 focus:ring-blue-500"
-                            disabled={isSaving}
-                          />
-                          {errors[`field-${index}-min`] && (
-                            <p className="text-red-500 text-sm mt-1">{errors[`field-${index}-min`]}</p>
-                          )}
-                        </div>
-                        <div>
-                          <Label htmlFor={`max-${field.id}`} className="text-gray-700">Tối đa</Label>
-                          <Input
-                            id={`max-${field.id}`}
-                            type="text"
-                            value={field.validation?.max ? formatNumber(field.validation.max) : ""}
-                            onChange={(e) => {
-                              const rawValue = e.target.value.replace(/\./g, "")
-                              updateField(field.id, {
-                                validation: { ...field.validation, max: rawValue === "" ? undefined : Number(rawValue) },
-                              })
-                              setErrors((prev) => ({ ...prev, [`field-${index}-max`]: "" }))
-                            }}
-                            placeholder="Số nguyên tối đa"
-                            className="border-blue-200 focus:ring-blue-500"
-                            disabled={isSaving}
-                          />
-                          {errors[`field-${index}-max`] && (
-                            <p className="text-red-500 text-sm mt-1">{errors[`field-${index}-max`]}</p>
-                          )}
-                        </div>
-                      </div>
-                      {errors[`field-${index}-range`] && (
-                        <p className="text-red-500 text-sm mt-1">{errors[`field-${index}-range`]}</p>
-                      )}
-                    </div>
-                  )}
-                  {field.type === "select" && (
-                    <div className="space-y-2">
-                      <Input
-                        placeholder="Các lựa chọn (cách nhau bởi dấu phẩy)"
-                        value={field.options?.join(", ") || ""}
+                        value={field.validation?.min ?? ""}
                         onChange={(e) =>
                           updateField(field.id, {
-                            options: e.target.value
-                              .split(",")
-                              .map((opt) => opt.trim()),
+                            validation: {
+                              ...field.validation,
+                              min:
+                                e.target.value === ""
+                                  ? undefined
+                                  : Number(e.target.value),
+                            },
                           })
                         }
+                        placeholder="Không giới hạn"
+                        className={`${inputClass} font-mono`}
                         disabled={isSaving}
-                        className="border-blue-200 focus:ring-blue-500"
                       />
-                      {errors[`field-${index}-options`] && (
-                        <p className="text-red-500 text-sm mt-1">{errors[`field-${index}-options`]}</p>
-                      )}
-                      <select
-                        className="w-full px-3 py-2 border border-blue-200 rounded-md focus:ring-blue-500"
-                        disabled={true}
-                      >
-                        {field.options?.map((option, idx) => (
-                          <option key={idx} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                        {(!field.options || field.options.length === 0) && (
-                          <option>Chưa có lựa chọn</option>
-                        )}
-                      </select>
                     </div>
-                  )}
+                    <div className="space-y-1">
+                      <Label className="text-[11px] text-slate-500">
+                        Tối đa
+                      </Label>
+                      <Input
+                        type="text"
+                        value={
+                          field.validation?.max
+                            ? formatNumber(field.validation.max)
+                            : ""
+                        }
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\./g, "");
+                          updateField(field.id, {
+                            validation: {
+                              ...field.validation,
+                              max: v === "" ? undefined : Number(v),
+                            },
+                          });
+                        }}
+                        placeholder="Không giới hạn"
+                        className={`${inputClass} font-mono`}
+                        disabled={isSaving}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+          {errors.fields && (
+            <p className="text-[11px] text-red-500">{errors.fields}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Workflow */}
+      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-slate-50 bg-slate-50/40">
+          <h2 className="text-[13px] font-semibold text-slate-700">
+            Luồng phê duyệt <span className="text-red-400">*</span>
+          </h2>
+        </div>
+        <div className="px-5 py-4 space-y-2.5">
+          {workflows.length === 0 ? (
+            <p className="text-[13px] text-slate-400">
+              Chưa có luồng phê duyệt nào.
+            </p>
+          ) : (
+            workflows.map((wf) => (
+              <div
+                key={wf._id}
+                className={cn(
+                  "border rounded-xl px-4 py-3 cursor-pointer transition-all duration-150",
+                  currentWorkflowId === wf._id
+                    ? "border-sky-300 bg-sky-50/50"
+                    : "border-slate-100 hover:border-slate-200",
+                )}
+                onClick={() => {
+                  setFormData((p) => (p ? { ...p, workflowId: wf._id } : p));
+                  setErrors((p) => ({ ...p, workflowId: "" }));
+                }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={cn(
+                      "h-3.5 w-3.5 rounded-full border-2 transition-all flex-shrink-0",
+                      currentWorkflowId === wf._id
+                        ? "border-sky-500 bg-sky-500"
+                        : "border-slate-300",
+                    )}
+                  />
+                  <div>
+                    <p className="text-[13px] font-medium text-slate-800">
+                      {wf.name}
+                    </p>
+                    {wf.description && (
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {wf.description}
+                      </p>
+                    )}
+                  </div>
                 </div>
+                {currentWorkflowId === wf._id && wf.steps?.length > 0 && (
+                  <div className="mt-2 ml-6 space-y-1">
+                    {wf.steps.map((step, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 text-[11.5px] text-slate-500"
+                      >
+                        <span className="h-4 w-4 rounded-full bg-white border border-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-400">
+                          {i + 1}
+                        </span>
+                        {(step.roleId as Role)?.displayName || "N/A"}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            ))}
-            {formData.fields.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                Chưa có trường nào. Nhấn "Thêm trường" để bắt đầu.
-              </div>
-            )}
-            {errors.fields && <p className="text-red-500 text-sm mt-1">{errors.fields}</p>}
-          </CardContent>
-        </Card>
+            ))
+          )}
+          {errors.workflowId && (
+            <p className="text-[11px] text-red-500">{errors.workflowId}</p>
+          )}
+        </div>
+      </div>
 
-        <Card className="bg-gradient-to-br from-gray-50 to-white hover:shadow-lg transition-shadow duration-300">
-          <CardHeader>
-            <CardTitle className="text-blue-800">Chọn luồng phê duyệt</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Select
-              onValueChange={handleWorkflowChange}
-              value={
-                typeof formData.workflowId === "object"
-                  ? formData.workflowId._id
-                  : formData.workflowId
-              }
-              disabled={isSaving}
-            >
-              <SelectTrigger className="border-blue-200 focus:ring-blue-500">
-                <SelectValue placeholder="Chọn luồng phê duyệt" />
-              </SelectTrigger>
-              <SelectContent>
-                {workflows.map((workflow) => (
-                  <SelectItem key={workflow._id} value={workflow._id}>
-                    {workflow.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.workflowId && <p className="text-red-500 text-sm mt-1">{errors.workflowId}</p>}
-          </CardContent>
-        </Card>
-
+      {/* Submit */}
+      <div className="flex items-center gap-3">
         <Button
           type="submit"
           disabled={isSaving}
-          className="w-full bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
+          className="h-9 px-5 bg-[#0f172a] hover:bg-slate-800 text-white text-[13px] font-medium rounded-lg gap-2"
         >
-          Lưu thay đổi
+          <Save className="h-3.5 w-3.5" />
+          <ButtonLoading isLoading={isSaving} loadingText="Đang lưu...">
+            Lưu thay đổi
+          </ButtonLoading>
         </Button>
-      </form>
-    </div>
-  )
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => router.push("/forms")}
+          disabled={isSaving}
+          className="h-9 px-4 text-[13px] text-slate-600 hover:bg-slate-100 rounded-lg"
+        >
+          Hủy
+        </Button>
+      </div>
+    </form>
+  );
 }
